@@ -167,6 +167,14 @@ class RaceManager:
         self.races = []
         self.racesById = {}
         self.changed = Signal()
+        
+    #
+    # Return seconds adjusted for our total START_SECONDS. In normal running, the return value
+    # is the same as the parameter. If we're speeding up the sequence for testing, the return value
+    # will be less. 
+    #
+    def adjustedStartSeconds(self, unadjustedSeconds):
+        return unadjustedSeconds * (300/START_SECONDS)
     
     #
     # Create a race, add to our races and return the race. If the name is not specified,
@@ -217,6 +225,7 @@ class RaceManager:
                 seconds = (WARNING_SECONDS + (START_SECONDS * raceNumber)))
 
             self.updateRaceStartTime(race,startTime)
+        self.changed.fire("sequenceStartedWithWarning")
 
 
     #
@@ -232,7 +241,7 @@ class RaceManager:
                 seconds = (START_SECONDS * raceNumber))
 
             self.updateRaceStartTime(race,startTime)
-
+        self.changed.fire("sequenceStartedWithoutWarning")
     #
     # Update the startTime for a race. Do this through the race manager
     # so that the race manager can signal the event change
@@ -282,6 +291,8 @@ class RaceManager:
             self.updateRaceStartTime(raceToRecall,
                     lastRace.startTime + timedelta(seconds=START_SECONDS))
             self.addRace(raceToRecall)
+            
+        self.changed.fire("generalRecall", raceToRecall)
 
         
         
