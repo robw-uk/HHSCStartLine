@@ -27,13 +27,14 @@
 from datetime import datetime,timedelta
 from wx.lib.pubsub import setupkwargs
 from wx.lib.pubsub import  pub
+import logging
 
 # As per ISAF rules, start minutes is 5
 # START_SECONDS = 300
 # WARNING_SECONDS=300
 # But we can reduce this for testing
-START_SECONDS=5
-WARNING_SECONDS=5
+START_SECONDS=30
+WARNING_SECONDS=30
 
 class RaceException(Exception):
     def __init__(self, race, message):
@@ -174,7 +175,11 @@ class RaceManager:
     # will be less. 
     #
     def adjustedStartSeconds(self, unadjustedSeconds):
-        return unadjustedSeconds * (300/START_SECONDS)
+        ratio = float(START_SECONDS)/300
+        adjustedSeconds = unadjustedSeconds * ratio
+        logging.log(logging.DEBUG, "Unadjusted seconds: %d adjusted seconds %d " % (unadjustedSeconds, adjustedSeconds))
+        
+        return adjustedSeconds
     
     #
     # Create a race, add to our races and return the race. If the name is not specified,
@@ -264,6 +269,11 @@ class RaceManager:
                 return race
         return None
 
+
+    def hasStartedRace(self):
+        return self.lastRaceStarted()
+
+
     #
     # Perform a general recall. This is always for the race that
     # has most recently started
@@ -285,12 +295,14 @@ class RaceManager:
         # otherwise kick the race to be the back of the queue,
         # with a start time five minutes after the last race
         else:
-            print "General recall not last race. Moving to back of queue"
+            
             self.removeRace(raceToRecall)
             lastRace = self.races[-1]
             self.updateRaceStartTime(raceToRecall,
                     lastRace.startTime + timedelta(seconds=START_SECONDS))
             self.addRace(raceToRecall)
+            logging.log(logging.INFO, "General recall not last race. Moving to back of queue. Delta to start time now %d seconds",
+                        raceToRecall.deltaToStartTime().total_seconds())
             
         self.changed.fire("generalRecall", raceToRecall)
 

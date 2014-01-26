@@ -3,12 +3,31 @@ Created on 23 Jan 2014
 
 @author: MBradley
 '''
-from raceview import StartLineFrame
+from screenui.raceview import StartLineFrame,AddRaceDialog
 from model.race import RaceManager
-from audio import AudioManager
+from screenui.audio import AudioManager
 import logging
 import sys
 import getopt
+import datetime
+
+RACES_LIST = ['Large handicap','Small handicap','Toppers','Large and small handicap','Terras','Oppies']
+
+
+#
+# LightsController uses the EasyDaqUSBRelay to control the hardware lights. It refreshes the lights every
+# 500 milliseconds until all races have started. 
+#
+class LightsController():
+    
+    def __init__(self, tkRoot,relay):
+        self.tkRoot = tkRoot
+        self.relay = relay
+        
+    
+        
+    
+    
 
 #
 # GunController uses the AudioManager to play a Wav file as the race "gun".
@@ -40,8 +59,9 @@ class GunController():
         
         
     def scheduleGun(self,millis):
-        
+        logging.log(logging.DEBUG,"Scheduling gun for %d " % millis)
         scheduleId = self.tkRoot.after(millis, self.fireGun)
+        
         self.addSchedule(scheduleId)
         
     def addSchedule(self,scheduleId):
@@ -54,12 +74,18 @@ class GunController():
         
     def scheduleGunForRace(self,aRace, secondsBefore):
         # calculate seconds to start of race
-        # we use abs to turn this into a positive.
-        secondsToStart = abs(aRace.deltaToStartTime().total_seconds())
+        # convert negative seconds to start to positive 
+        secondsToStart = aRace.deltaToStartTime().total_seconds()  * -1
         
-        secondsToGun = secondsToStart - secondsBefore
-        self.scheduleGun(secondsToGun * 1000)
         
+        # check that the race is still in the future (for example if we are debugging)
+        if secondsToStart > 0:
+            
+            
+            secondsToGun = secondsToStart - secondsBefore
+            logging.log(logging.DEBUG,"Seconds to start: %d, seconds to gun: %d" % (secondsToStart,secondsToGun))
+            self.scheduleGun(int(1000*secondsToGun ))
+            
          
         
     
@@ -72,8 +98,11 @@ class GunController():
         # fire a gun straight away
         self.fireGun()
         
+        
         self.scheduleGunForRace(self.raceManager.races[0],
                 self.raceManager.adjustedStartSeconds(300))
+        
+        self.scheduleGunsForFutureRaces()
         
     
     def handleSequenceStartedWithoutWarning(self):
@@ -82,8 +111,10 @@ class GunController():
         
         self.scheduleGunsForFutureRaces()
     
-    def handleGeneralRecall(self):
+    def handleGeneralRecall(self,aRace):
         self.fireGun()
+        self.fireGun()
+        self.cancelSchedules()
         self.scheduleGunsForFutureRaces()
     
     
@@ -147,8 +178,24 @@ class ScreenController():
              text = aRace.name,
              values=(self.renderDeltaToStartTime(aRace),aRace.status()))  
             
+    def showAddRaceDialog(self):
+        dlg = AddRaceDialog(self.startLineFrame,RACES_LIST)
+        # ... build the window ...
+        ## Set the focus on dialog window (needed on Windows)
+        dlg.top.focus_set()
+        ## Make sure events only go to our dialog
+        dlg.top.grab_set()
+        ## Make sure dialog stays on top of its parent window (if needed)
+        dlg.top.transient(self.startLineFrame)
+        ## Display the window and wait for it to close
+        dlg.top.wait_window()
+        return dlg.raceName
+    
     def addRaceClicked(self):
-        self.raceManager.createRace()
+        raceName = self.showAddRaceDialog()
+        
+        if raceName:
+            self.raceManager.createRace(raceName)
         
     def removeRaceClicked(self):#
         # check we have a selected race
@@ -157,9 +204,17 @@ class ScreenController():
             
     def startRaceSequenceWithWarningClicked(self):
         self.raceManager.startRaceSequenceWithWarning()
+        self.startLineFrame.disableAddRaceButton()
+        self.startLineFrame.disableRemoveRaceButton()
+        self.startLineFrame.disableStartRaceSequenceWithWarningButton()
+        self.startLineFrame.disableStartRaceSequenceWithoutWarningButton()
     
     def startRaceSequenceWithoutWarningClicked(self):
         self.raceManager.startRaceSequenceWithoutWarning()
+        self.startLineFrame.disableAddRaceButton()
+        self.startLineFrame.disableRemoveRaceButton()
+        self.startLineFrame.disableStartRaceSequenceWithWarningButton()
+        self.startLineFrame.disableStartRaceSequenceWithoutWarningButton()
         
     def generalRecallClicked(self):
         self.raceManager.generalRecall()
@@ -187,7 +242,15 @@ class ScreenController():
     
     def renderDeltaToStartTime(self, aRace):
         if aRace.hasStartTime():
-            return str(int(aRace.deltaToStartTime().total_seconds()))
+            deltaToStartTimeSeconds = int(aRace.deltaToStartTime().total_seconds())
+            
+            hmsString = str(datetime.timedelta(seconds=(abs(deltaToStartTimeSeconds))))
+            
+            if deltaToStartTimeSeconds < 0:
+                return "-" +  hmsString 
+            else:
+                return hmsString
+        
         else:
             return "-"
         
@@ -197,6 +260,7 @@ class ScreenController():
         # iterate over all of our races. Read the start time delta and
         # and status, and update the racesTreeView with their values
         #
+        
         for aRace in self.raceManager.races:
             
             self.startLineFrame.racesTreeView.item(
@@ -205,6 +269,16 @@ class ScreenController():
                         values=[self.renderDeltaToStartTime(aRace), aRace.status()])
         
         self.startLineFrame.after(200, self.refreshRacesView)
+        
+        #
+        # Ask our race manager if we have a started race
+        #
+        if self.raceManager.hasStartedRace():
+            self.startLineFrame.enableGeneralRecallButton()
+        else:
+            self.startLineFrame.disableGeneralRecallButton()
+            
+    
     
     
     
@@ -215,6 +289,8 @@ class ScreenController():
     def start(self):
         self.startLineFrame.after(500, self.refreshRacesView)
         
+logging.basicConfig(level=logging.DEBUG,
+    format = "%(levelname)s:%(asctime)-15s %(message)s")
         
 logging.debug(sys.argv)
 myopts, args = getopt.getopt(sys.argv[1:],"p:t:",["port=","testSpeedRatio="])        
@@ -230,7 +306,7 @@ for o, a in myopts:
         
 app = StartLineFrame()  
 raceManager = RaceManager()     
-audioManager = AudioManager("c:/Users/mbradley/workspace/HHSCStartLine/media/AirHorn.wav",app)  
+audioManager = AudioManager("c:/Users/mbradley/workspace/HHSCStartLine/media/beep.wav",app)  
 screenController = ScreenController(app,raceManager,audioManager)
 gunController = GunController(app, audioManager, raceManager)             
 screenController.start() 
