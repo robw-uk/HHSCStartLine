@@ -6,6 +6,7 @@ Created on 23 Jan 2014
 from screenui.raceview import StartLineFrame,AddRaceDialog
 from model.race import RaceManager
 from screenui.audio import AudioManager
+from lightsui.hardware import LIGHT_OFF, LIGHT_ON, EasyDaqUSBRelay
 import logging
 import sys
 import getopt
@@ -20,10 +21,74 @@ RACES_LIST = ['Large handicap','Small handicap','Toppers','Large and small handi
 #
 class LightsController():
     
-    def __init__(self, tkRoot,relay):
+    def __init__(self, tkRoot,easyDaqRelay,raceManager):
         self.tkRoot = tkRoot
-        self.relay = relay
+        self.easyDaqRelay = easyDaqRelay
+        self.raceManager = raceManager
+        # we start assuming that our lights are off
+        self.currentLights = [LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF]
+        self.wireController()
         
+    def wireController(self):
+        
+        
+        self.raceManager.changed.connect("generalRecall",self.handleGeneralRecall)
+        self.raceManager.changed.connect("sequenceStartedWithWarning",self.handleSequenceStarted)
+        self.raceManager.changed.connect("sequenceStartedWithoutWarning",self.handleSequenceStarted)
+        
+    
+    def handleGeneralRecall(self,race):
+        self.updateLights()
+    
+    def handleSequenceStarted(self):
+        self.updateLights()
+    
+    def calculateLightsDisplay(self):
+        #
+        # out default is no lights
+        lights = [LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF]
+        
+        # ask for the next race to start
+        nextRaceToStart = self.raceManager.nextRaceToStart()
+        
+        # if we have a race to start
+        if nextRaceToStart:
+            secondsToStart = -1 * nextRaceToStart.deltaToStartTime().total_seconds()
+            
+            if secondsToStart <= self.raceManager.adjustedStartSeconds(300) and secondsToStart > self.raceManager.adjustedStartSeconds(240):
+                lights = [LIGHT_ON, LIGHT_ON, LIGHT_ON, LIGHT_ON, LIGHT_ON]
+            elif secondsToStart <= self.raceManager.adjustedStartSeconds(240) and secondsToStart > self.raceManager.adjustedStartSeconds(180):
+                lights = [LIGHT_ON, LIGHT_ON, LIGHT_ON, LIGHT_ON, LIGHT_OFF]
+            elif secondsToStart <= self.raceManager.adjustedStartSeconds(180) and secondsToStart > self.raceManager.adjustedStartSeconds(120): 
+                lights = [LIGHT_ON, LIGHT_ON, LIGHT_ON, LIGHT_OFF, LIGHT_OFF]
+            elif secondsToStart <= self.raceManager.adjustedStartSeconds(120) and secondsToStart > self.raceManager.adjustedStartSeconds(60): 
+                lights = [LIGHT_ON, LIGHT_ON, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF]
+            elif secondsToStart <= self.raceManager.adjustedStartSeconds(60) and secondsToStart > self.raceManager.adjustedStartSeconds(30): 
+                lights = [LIGHT_ON, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF]
+            elif secondsToStart <= self.raceManager.adjustedStartSeconds(30) and (secondsToStart % 2 == 0):
+                lights = [LIGHT_ON, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF]
+            else:
+                lights = [LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF]
+            
+        return lights
+    
+    def updateLights(self):
+        newLights = self.calculateLightsDisplay()
+        
+        if newLights != self.currentLights:
+            self.easyDaqRelay.sendRelayCommand(newLights)
+            self.currentLights = newLights
+        
+        # check that we still have a race to start, if so,
+        # use the Tk event timer to call ourselves again
+        if self.raceManager.nextRaceToStart():
+            self.tkRoot.after(500, self.updateLights)
+           
+        
+    def start(self):
+        self.easyDaqRelay.connect()     
+                
+    
     
         
     
@@ -138,23 +203,23 @@ class GunController():
 class ScreenController():
     pass
 
-    def __init__(self,startLineFrame,raceManager,audioManager):
+    def __init__(self,startLineFrame,raceManager,audioManager,easyDaqRelay):
         self.startLineFrame = startLineFrame
         self.raceManager = raceManager
         self.audioManager = audioManager
-        self.createRaceManager()
+        self.easyDaqRelay = easyDaqRelay
+        
         self.buildRaceManagerView()
         
         self.wireController()
         
-    def createRaceManager(self):
-        
+   
+
+    def wireController(self):
         self.raceManager.changed.connect("raceAdded",self.handleRaceAdded)
         self.raceManager.changed.connect("raceRemoved",self.handleRaceRemoved)
         self.raceManager.changed.connect("raceChanged",self.handleRaceChanged)
-        
-
-    def wireController(self):
+        self.easyDaqRelay.changed.connect("connectionStateChanged",self.handleConnectionStateChanged)
         self.startLineFrame.addRaceButton.config(command=self.addRaceClicked)
         self.startLineFrame.removeRaceButton.config(command=self.removeRaceClicked)
         self.startLineFrame.racesTreeView.bind("<<TreeviewSelect>>",self.raceSelectionChanged)
@@ -239,6 +304,14 @@ class ScreenController():
     def handleRaceChanged(self,aRace):
         pass
     
+    #
+    # event handler for the connection state of the easyDaqRelay changing
+    #
+    def handleConnectionStateChanged(self,state):
+        # update the Tk string variable with the session state description
+        # from the EasyDaq relay object
+        self.startLineFrame.connectionStatus.set(self.easyDaqRelay.sessionStateDescription())
+    
     
     def renderDeltaToStartTime(self, aRace):
         if aRace.hasStartTime():
@@ -306,9 +379,12 @@ for o, a in myopts:
         
 app = StartLineFrame()  
 raceManager = RaceManager()     
+easyDaqRelay = EasyDaqUSBRelay(comPort, app)
 audioManager = AudioManager("c:/Users/mbradley/workspace/HHSCStartLine/media/beep.wav",app)  
-screenController = ScreenController(app,raceManager,audioManager)
-gunController = GunController(app, audioManager, raceManager)             
+screenController = ScreenController(app,raceManager,audioManager,easyDaqRelay)
+gunController = GunController(app, audioManager, raceManager)
+lightsController = LightsController(app, easyDaqRelay, raceManager)             
 screenController.start() 
+lightsController.start()
 app.master.title('HHSC Race Lights')    
 app.mainloop()  

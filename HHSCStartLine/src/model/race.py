@@ -136,6 +136,9 @@ class Race:
                 return False
         else:
             return False
+        
+    def isWaitingToStart(self):
+        return self.hasStartTime() and not self.isStarted()
 
     #
     # Provide a string representation of the status of the race
@@ -177,7 +180,7 @@ class RaceManager:
     def adjustedStartSeconds(self, unadjustedSeconds):
         ratio = float(START_SECONDS)/300
         adjustedSeconds = unadjustedSeconds * ratio
-        logging.log(logging.DEBUG, "Unadjusted seconds: %d adjusted seconds %d " % (unadjustedSeconds, adjustedSeconds))
+        
         
         return adjustedSeconds
     
@@ -266,6 +269,16 @@ class RaceManager:
     def lastRaceStarted(self):
         for race in reversed(self.races):
             if race.isStarted():
+                return race
+        return None
+    
+    #
+    # Fine the next race to start. If we don't have a race starting,
+    # return None.
+    #
+    def nextRaceToStart(self):
+        for race in self.races:
+            if race.isStarting() or race.isWaitingToStart():
                 return race
         return None
 

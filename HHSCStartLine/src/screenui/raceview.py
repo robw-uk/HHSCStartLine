@@ -78,6 +78,12 @@ class StartLineFrame(Frame):
                                     text="Gun")
         self.gunButton.grid(row=3,column=3)
         
+        #
+        # EasyDaqRelay connection status label
+        #
+        self.connectionStatus = StringVar(self,value="Connecting")
+        connectionStatusLabel = Label(self,textvariable=self.connectionStatus)
+        connectionStatusLabel.grid(row=4,column=0)
         
         # tell the frame to lay itself out
         

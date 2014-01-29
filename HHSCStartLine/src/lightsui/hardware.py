@@ -10,14 +10,44 @@ import datetime
 # constants for lights state
 LIGHT_OFF = 0
 LIGHT_ON = 1
-LIGHT_FLASHING = 2
 
 # constants for serial port session state
 DISCONNECTED = 0
 RECONNECTING = 1
 CONNECTED = 2
 
+#
+# Our event handling mechanism,
+# from http://codereview.stackexchange.com/questions/20938/the-observer-design-pattern-in-python-in-a-more-pythonic-way-plus-unit-testing
+#
+class Signal(object):
+    def __init__(self):
+        self._handlers = {}
 
+    def connect(self, event,handler):
+        if event in self._handlers:
+            # do nothing, we've got a list of handlers for this event
+            pass
+        else:
+            self._handlers[event] = []
+         
+        self._handlers[event].append(handler)
+
+    def fire(self, event, *args):
+        if event in self._handlers:
+            for handler in self._handlers[event]:
+                handler(*args)
+
+
+'''
+EasyDayUSBRelay wraps an EasyDaq USB relay board. It currently uses the tkinter 
+event loop for managing events.
+
+If we experience issues with the stability of the tkinter user interface,
+we could wrap this object in a separate process and use python Queue objects
+to pass changes in the lights.
+  
+'''
 class EasyDaqUSBRelay:
 
     def __init__(self, serialPortName,tkRoot):
@@ -30,9 +60,10 @@ class EasyDaqUSBRelay:
         #
         self.tkRoot = tkRoot
         
-        # we use an observer model to enable observers to register for callbacks when the status of the
-        # serial port connection changes from connected to not connected
-        self.observers = []
+        #
+        # we use a signal pattern to notify events
+        #
+        self.changed = Signal()
         
         #
         # we create our serial port connection now. We don't open the connection until we are asked to connect
@@ -73,7 +104,7 @@ class EasyDaqUSBRelay:
     def setSessionState(self,state):
         self.sessionState = state
         logging.info("Session state is %s" % self.sessionStateDescription())
-        self.notifyObservers()
+        self.changed.fire("connectionStateChanged",state)
         
     def beConnected(self):
         self.setSessionState(CONNECTED)
@@ -101,17 +132,7 @@ class EasyDaqUSBRelay:
         
     def isReconnecting(self):
         return self.sessionState == RECONNECTING
-        
-    def notifyObservers(self):
-        for anObserver in self.observers:
-            anObserver.relayStateChanged(self)
-    
-    def addObserver(self, anObserver):
-        '''
-        Add an observer to the relay. The callback the method relayStatusChanged
-        '''
-        self.observers.append(anObserver)
-        
+            
     def processedCommand(self):
         '''
         We've processed a command. Capture the current date time.
@@ -126,7 +147,7 @@ class EasyDaqUSBRelay:
             
             if (self.timeSinceLastPacket() > 5000):
                 try:
-                    logging.debug("Time since last packet %i so sending query packet" % self.timeSinceLastPacket())
+                    
                     # create a relay packet that requests the EasyDaq to output its status
                     self.currentRelayPacket = 'A' + chr(0)
                     # and queue a request
@@ -136,7 +157,7 @@ class EasyDaqUSBRelay:
                     # and schedule to do this again in 5000 milli
                     self.tkRoot.after(5000,self.maintainSession)
                 except (serial.SerialException):
-                    logging.debug("Exception writing read request to session")
+                    logging.exception("Exception writing read request to session")
                     self.beNotConnected()
                     self.reconnect()
             # otherwise maintain session when 5000 millis has elapsed
@@ -260,7 +281,7 @@ class EasyDaqUSBRelay:
         
         
         # if time delta is at least 100 milliseconds
-            
+        
         if (self.timeSinceLastPacket() > 100):
             # we can write the command now.
             self.writePacketToEasyDaq()
