@@ -11,6 +11,7 @@ import logging
 import sys
 import getopt
 import datetime
+import tkMessageBox
 
 RACES_LIST = ['Large handicap','Small handicap','Toppers','Large and small handicap','Terras','Oppies']
 
@@ -212,8 +213,12 @@ class ScreenController():
         self.buildRaceManagerView()
         
         self.wireController()
+        self.disableButtons()
         
    
+    def disableButtons(self):
+        self.startLineFrame.disableRemoveRaceButton()
+        self.startLineFrame.disableAbandonStartRaceSequenceButton()
 
     def wireController(self):
         self.raceManager.changed.connect("raceAdded",self.handleRaceAdded)
@@ -227,6 +232,7 @@ class ScreenController():
         self.startLineFrame.startRaceSequenceWithoutWarningButton.config(command=self.startRaceSequenceWithoutWarningClicked)
         self.startLineFrame.generalRecallButton.config(command=self.generalRecallClicked)
         self.startLineFrame.gunButton.config(command=self.gunClicked)
+        self.startLineFrame.abandonStartRaceSequenceButton.config(command=self.abandonStartRaceSequenceClicked)
         
     def buildRaceManagerView(self):
         # we build our tree
@@ -246,12 +252,16 @@ class ScreenController():
     def showAddRaceDialog(self):
         dlg = AddRaceDialog(self.startLineFrame,RACES_LIST)
         # ... build the window ...
+        
         ## Set the focus on dialog window (needed on Windows)
         dlg.top.focus_set()
         ## Make sure events only go to our dialog
         dlg.top.grab_set()
         ## Make sure dialog stays on top of its parent window (if needed)
         dlg.top.transient(self.startLineFrame)
+        # set the position to be relative to the parent
+        dlg.top.geometry("+%d+%d" % (self.startLineFrame.winfo_rootx()+50,
+                                  self.startLineFrame.winfo_rooty()+50))
         ## Display the window and wait for it to close
         dlg.top.wait_window()
         return dlg.raceName
@@ -273,6 +283,7 @@ class ScreenController():
         self.startLineFrame.disableRemoveRaceButton()
         self.startLineFrame.disableStartRaceSequenceWithWarningButton()
         self.startLineFrame.disableStartRaceSequenceWithoutWarningButton()
+        self.startLineFrame.enableAbandonStartRaceSequenceButton()
     
     def startRaceSequenceWithoutWarningClicked(self):
         self.raceManager.startRaceSequenceWithoutWarning()
@@ -280,13 +291,28 @@ class ScreenController():
         self.startLineFrame.disableRemoveRaceButton()
         self.startLineFrame.disableStartRaceSequenceWithWarningButton()
         self.startLineFrame.disableStartRaceSequenceWithoutWarningButton()
+        self.startLineFrame.enableAbandonStartRaceSequenceButton()
         
     def generalRecallClicked(self):
-        self.raceManager.generalRecall()
+        result = tkMessageBox.askquestion("General Recall","Are you sure?", icon="warning")
+        if result == 'yes':
+            self.raceManager.generalRecall()
         
     def gunClicked(self):
         self.audioManager.queueWav()
-    
+
+
+    def abandonStartRaceSequenceClicked(self):
+        result = tkMessageBox.askquestion("Abandon race sequence","Are you sure?", icon="warning")
+        if result == 'yes':
+            self.raceManager.abandonStartSequence()
+            self.startLineFrame.disableGeneralRecallButton()
+            self.startLineFrame.disableAbandonStartRaceSequenceButton()
+            self.startLineFrame.enableAddRaceButton()
+            self.startLineFrame.enableRemoveRaceButton()
+            self.startLineFrame.enableStartRaceSequenceWithoutWarningButton()
+            self.startLineFrame.enableStartRaceSequenceWithWarningButton()
+            
         
     def raceSelectionChanged(self,event):
         item = self.startLineFrame.racesTreeView.selection()[0]
@@ -297,9 +323,15 @@ class ScreenController():
     
     def handleRaceAdded(self,aRace):
         self.appendRaceToTreeView(aRace)
+        self.startLineFrame.enableRemoveRaceButton()
+        self.startLineFrame.enableStartRaceSequenceWithoutWarningButton()
+        self.startLineFrame.enableStartRaceSequenceWithWarningButton()
     
     def handleRaceRemoved(self,aRace):
         self.startLineFrame.racesTreeView.delete(aRace.raceId)
+        if not self.raceManager.isEmpty():
+            self.startLineFrame.disableStartRaceSequenceWithoutWarningButton()
+            self.startLineFrame.disableStartRaceSequenceWithWarningButton()
     
     def handleRaceChanged(self,aRace):
         pass

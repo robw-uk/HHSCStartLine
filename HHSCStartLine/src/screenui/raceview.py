@@ -30,6 +30,7 @@ class StartLineFrame(Frame):
         style = Style()
         style.configure('.', font=('Helvetica',16))
         style.configure('Treeview',rowheight=30)
+        
     
         
         self.racesTreeView = Treeview(self,columns=["startTime","status"],style='Treeview')
@@ -47,43 +48,66 @@ class StartLineFrame(Frame):
         
         # add race button
         self.addRaceButton = Button(self,
-                                        text="Add race")
-        self.addRaceButton.grid(row=2,column=0)
+                                    text="Add race")
+        self.addRaceButton.grid(row=2,
+                                column=0,
+                                sticky=W+E+N+S,
+                                   ipady=20)
         
         
         # remove race button
         self.removeRaceButton = Button(self,
                                         text="Remove race")
-        self.removeRaceButton.grid(row=2,column=1)
+        self.removeRaceButton.grid(row=3,
+                                   column=0, 
+                                   sticky=W+E+N+S,
+                                   ipady=20)
         
         # start race sequence with warning
         self.startRaceSequenceWithWarningButton = Button(self,
                                         text="F Flag Start")
-        self.startRaceSequenceWithWarningButton.grid(row=0,column=3)
+        self.startRaceSequenceWithWarningButton.grid(row=2,
+                                                     column=1,
+                                                     sticky=W+E+N+S,
+                                                     ipady=20)
         
         # start race sequence without warning
         self.startRaceSequenceWithoutWarningButton = Button(self,
                                         text="Class Flag Start")
-        self.startRaceSequenceWithoutWarningButton.grid(row=1,column=3)
+        self.startRaceSequenceWithoutWarningButton.grid(row=3,
+                                                        column=1,
+                                                        sticky=W+E+N+S,
+                                                        ipady=20)
         
         # general recall button
         self.generalRecallButton = Button(self,
                                         text="General recall")
-        self.generalRecallButton.grid(row=2,column=3)
+        self.generalRecallButton.grid(row=4,
+                                      column=1,
+                                      sticky=W+E+N+S,
+                                      ipady=20)
+        
+        # abandon sequence button
+        self.abandonStartRaceSequenceButton = Button(self,
+                                          text="Abandon start")
+        self.abandonStartRaceSequenceButton.grid(row=4,
+                                      column=0,
+                                      sticky=W+E+N+S,
+                                      ipady=20)
         
         #
         # gun button
         #
         self.gunButton = Button(self,
                                     text="Gun")
-        self.gunButton.grid(row=3,column=3)
+        self.gunButton.grid(row=0,column=3,sticky=W+E+N+S)
         
         #
         # EasyDaqRelay connection status label
         #
         self.connectionStatus = StringVar(self,value="Connecting")
         connectionStatusLabel = Label(self,textvariable=self.connectionStatus)
-        connectionStatusLabel.grid(row=4,column=0)
+        connectionStatusLabel.grid(row=5,column=0)
         
         # tell the frame to lay itself out
         
@@ -120,6 +144,12 @@ class StartLineFrame(Frame):
         
     def enableStartRaceSequenceWithoutWarningButton(self):
         self.startRaceSequenceWithoutWarningButton['state'] = NORMAL
+        
+    def disableAbandonStartRaceSequenceButton(self):
+        self.abandonStartRaceSequenceButton['state'] = DISABLED
+        
+    def enableAbandonStartRaceSequenceButton(self):
+        self.abandonStartRaceSequenceButton['state'] = NORMAL
         
 class AddRaceDialog:
     def __init__(self, parent, raceNamesList):

@@ -217,6 +217,9 @@ class RaceManager:
 
     def numberRaces(self):
         return len(self.races)
+    
+    def hasRaces(self):
+        return self.numberRaces() > 0
 
     #
     # Start our race sequence with a five minute warning before the first
@@ -285,6 +288,15 @@ class RaceManager:
 
     def hasStartedRace(self):
         return self.lastRaceStarted()
+    
+    
+    #
+    # Abandon start sequence - set all races to no start time, and fire a signal
+    #
+    def abandonStartSequence(self):
+        for race in self.races:
+            race.startTime = None
+        self.changed.fire("startSequenceAbandoned")
 
 
     #
