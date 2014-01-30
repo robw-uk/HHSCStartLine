@@ -103,6 +103,13 @@ class StartLineFrame(Frame):
         self.gunButton.grid(row=0,column=3,sticky=W+E+N+S)
         
         #
+        # clock
+        #
+        self.clockStringVar = StringVar(self,value="00:00:00")
+        clockLabel = Label(self,textvariable=self.clockStringVar)
+        clockLabel.grid(row=5,column=3)
+        
+        #
         # EasyDaqRelay connection status label
         #
         self.connectionStatus = StringVar(self,value="Connecting")

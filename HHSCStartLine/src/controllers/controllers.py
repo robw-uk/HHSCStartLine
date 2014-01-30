@@ -373,7 +373,7 @@ class ScreenController():
                         
                         values=[self.renderDeltaToStartTime(aRace), aRace.status()])
         
-        self.startLineFrame.after(200, self.refreshRacesView)
+        self.startLineFrame.after(250, self.refreshRacesView)
         
         #
         # Ask our race manager if we have a started race
@@ -382,7 +382,10 @@ class ScreenController():
             self.startLineFrame.enableGeneralRecallButton()
         else:
             self.startLineFrame.disableGeneralRecallButton()
-            
+        #
+        # Update our clock
+        #
+        self.startLineFrame.clockStringVar.set(datetime.datetime.now().strftime("%H:%M:%S"))
     
     
     
@@ -394,14 +397,14 @@ class ScreenController():
     def start(self):
         self.startLineFrame.after(500, self.refreshRacesView)
         
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.INFO,
     format = "%(levelname)s:%(asctime)-15s %(message)s")
         
 logging.debug(sys.argv)
 myopts, args = getopt.getopt(sys.argv[1:],"p:t:",["port=","testSpeedRatio="])        
 
 for o, a in myopts:
-    logging.debug("Option %s value %s" % (o,a))
+    logging.info("Option %s value %s" % (o,a))
     if o in ('-p','--port'):
         comPort=a
     elif o in ('-t','--testSpeedRatio'):
