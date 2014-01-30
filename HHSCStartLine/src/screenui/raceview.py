@@ -24,6 +24,7 @@ class StartLineFrame(Frame):
         '''
         Frame.__init__(self, master)
         self.createWidgets()
+
         
     def createWidgets(self):
         
@@ -33,7 +34,10 @@ class StartLineFrame(Frame):
         
     
         
-        self.racesTreeView = Treeview(self,columns=["startTime","status"],style='Treeview')
+        self.racesTreeView = Treeview(self,
+                                      columns=["startTime","status"],
+                                      style='Treeview',
+                                      selectmode="browse")
         
         ysb = Scrollbar(self, orient='vertical', command=self.racesTreeView.yview)
         xsb = Scrollbar(self, orient='horizontal', command=self.racesTreeView.xview)
@@ -46,6 +50,12 @@ class StartLineFrame(Frame):
         ysb.grid(row=0, column=2, sticky='ns')
         xsb.grid(row=1, column=0, columnspan=2,sticky='ew')
         
+        self.finishTreeView = Treeview(self,columns=["finishTime"],style="Treeview")
+        ysb = Scrollbar(self, orient='vertical', command=self.racesTreeView.yview)
+        xsb = Scrollbar(self, orient='horizontal', command=self.racesTreeView.xview)
+        # NB need to make this auto scroll
+        self.racesTreeView.heading("#0",text='Race',anchor=W)
+        
         # add race button
         self.addRaceButton = Button(self,
                                     text="Add race")
@@ -57,7 +67,7 @@ class StartLineFrame(Frame):
         
         # remove race button
         self.removeRaceButton = Button(self,
-                                        text="Remove race")
+                                        text="Remove race",state=DISABLED)
         self.removeRaceButton.grid(row=3,
                                    column=0, 
                                    sticky=W+E+N+S,
@@ -65,7 +75,7 @@ class StartLineFrame(Frame):
         
         # start race sequence with warning
         self.startRaceSequenceWithWarningButton = Button(self,
-                                        text="F Flag Start")
+                                        text="F Flag Start",state=DISABLED)
         self.startRaceSequenceWithWarningButton.grid(row=2,
                                                      column=1,
                                                      sticky=W+E+N+S,
@@ -73,7 +83,7 @@ class StartLineFrame(Frame):
         
         # start race sequence without warning
         self.startRaceSequenceWithoutWarningButton = Button(self,
-                                        text="Class Flag Start")
+                                        text="Class Flag Start",state=DISABLED)
         self.startRaceSequenceWithoutWarningButton.grid(row=3,
                                                         column=1,
                                                         sticky=W+E+N+S,
@@ -81,7 +91,7 @@ class StartLineFrame(Frame):
         
         # general recall button
         self.generalRecallButton = Button(self,
-                                        text="General recall")
+                                        text="General recall",state=DISABLED)
         self.generalRecallButton.grid(row=4,
                                       column=1,
                                       sticky=W+E+N+S,
@@ -89,7 +99,7 @@ class StartLineFrame(Frame):
         
         # abandon sequence button
         self.abandonStartRaceSequenceButton = Button(self,
-                                          text="Abandon start")
+                                          text="Abandon start",state=DISABLED)
         self.abandonStartRaceSequenceButton.grid(row=4,
                                       column=0,
                                       sticky=W+E+N+S,
@@ -170,15 +180,18 @@ class AddRaceDialog:
         
         
         
+        
     def createWidgets(self):
         style = Style()
         style.configure('.', font=('Helvetica',16))
-        style.configure('Listbox',rowheight=30)
+        style.configure('Treeview',rowheight=30)
         
         label = Label(self.frame, text='Choose from the list:')
         label.pack()
         
-        self.raceNamesListBox = Treeview(self.frame)
+        self.raceNamesListBox = Treeview(self.frame,
+                                         selectmode="browse")
+        self.raceNamesListBox.column("#0", width=400)
         
         self.raceNamesListBox.pack(fill=BOTH,expand=True)
         
@@ -187,6 +200,7 @@ class AddRaceDialog:
             self.raceNamesListBox.insert(parent="",index="end",text=raceName,iid=raceName)
             
         self.raceNamesListBox.bind('<<TreeviewSelect>>',self.raceNameListItemSelected)
+        self.raceNamesListBox.bind("<Double-1>", self.raceNameDoubleClicked)
     
         label = Label(self.frame, text='or type in your own', anchor=W)
         label.pack()
@@ -204,11 +218,18 @@ class AddRaceDialog:
         self.okButton.pack()
         
     def raceNameListItemSelected(self,event):
-        print "We have a selection"
+        
         
         # note that we set the iid of each item in the list to be the name. Very simple.
         selectedRaceName = self.raceNamesListBox.selection()[0]
         self.raceNameVariable.set(selectedRaceName)
+    
+    def raceNameDoubleClicked(self,event):
+        selectedRaceName = self.raceNamesListBox.selection()[0]
+        self.raceNameVariable.set(selectedRaceName)
+        self.raceName=self.raceNameVariable.get()
+        self.top.destroy()
+        
     
     def okClicked(self):
         self.raceName=self.raceNameVariable.get()

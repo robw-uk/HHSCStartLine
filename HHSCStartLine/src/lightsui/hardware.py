@@ -4,8 +4,10 @@ Created on 26 Jan 2014
 @author: MBradley
 '''
 import logging
-import serial
+
 import datetime
+
+import serial
 
 # constants for lights state
 LIGHT_OFF = 0

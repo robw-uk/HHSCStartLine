@@ -25,8 +25,6 @@
 #
 
 from datetime import datetime,timedelta
-from wx.lib.pubsub import setupkwargs
-from wx.lib.pubsub import  pub
 import logging
 
 # As per ISAF rules, start minutes is 5
@@ -41,7 +39,7 @@ class RaceException(Exception):
         self.race = race
         self.message = message
     def __str__(self):
-         return repr(self.race)+ self.message
+        return repr(self.race)+ self.message
 
 #
 # Our event handling mechanism,
@@ -193,9 +191,9 @@ class RaceManager:
         self.addRace(aRace)
         return aRace
     
-    def raceWithId(self,id):
-        if id in self.racesById:
-            return self.racesById[id]
+    def raceWithId(self,raceId):
+        if raceId in self.racesById:
+            return self.racesById[raceId]
         
 
     def addRace(self, aRace):
@@ -226,7 +224,7 @@ class RaceManager:
     # race, i.e. 10 minutes to the first race
     #
     def startRaceSequenceWithWarning(self):
-        
+        logging.info("Start sequence with warning (F flag start)")
         raceNumber = 0
         now = datetime.now()
         for race in self.races:
@@ -243,6 +241,7 @@ class RaceManager:
     # Start our race sequence without a warning (i.e. class start)
     #
     def startRaceSequenceWithoutWarning(self):
+        logging.info("Start sequence without warning (class flag start)")
         raceNumber = 0
         now = datetime.now()
         for race in self.races:
@@ -290,6 +289,13 @@ class RaceManager:
         return self.lastRaceStarted()
     
     
+    def hasSequenceStarted(self):
+        if self.nextRaceToStart():
+            return True
+        else:
+            return False
+    
+    
     #
     # Abandon start sequence - set all races to no start time, and fire a signal
     #
@@ -304,6 +310,7 @@ class RaceManager:
     # has most recently started
     #
     def generalRecall(self):
+        logging.info("General recall")
         raceToRecall = self.lastRaceStarted()
 
         # if this is not the last race, kick the race to the back
@@ -313,7 +320,7 @@ class RaceManager:
         # if this is the last race, set its start time to be five
         # minutes from now
         if raceToRecall == self.races[-1]:
-            print "General recall last race"
+            logging.info("General recall last race")
             self.updateRaceStartTime(raceToRecall,datetime.now()
                                  + timedelta(seconds=START_SECONDS))
 

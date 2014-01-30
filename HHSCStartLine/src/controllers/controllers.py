@@ -6,7 +6,7 @@ Created on 23 Jan 2014
 from screenui.raceview import StartLineFrame,AddRaceDialog
 from model.race import RaceManager
 from screenui.audio import AudioManager
-from lightsui.hardware import LIGHT_OFF, LIGHT_ON, EasyDaqUSBRelay
+
 import logging
 import sys
 import getopt
@@ -36,12 +36,17 @@ class LightsController():
         self.raceManager.changed.connect("generalRecall",self.handleGeneralRecall)
         self.raceManager.changed.connect("sequenceStartedWithWarning",self.handleSequenceStarted)
         self.raceManager.changed.connect("sequenceStartedWithoutWarning",self.handleSequenceStarted)
+        self.raceManager.changed.connect("startSequenceAbandoned",self.handleStartSequenceAbandoned)
+        
         
     
     def handleGeneralRecall(self,race):
         self.updateLights()
     
     def handleSequenceStarted(self):
+        self.updateLights()
+        
+    def handleStartSequenceAbandoned(self):
         self.updateLights()
     
     def calculateLightsDisplay(self):
@@ -118,6 +123,7 @@ class GunController():
         self.raceManager.changed.connect("sequenceStartedWithWarning",self.handleSequenceStartedWithWarning)
         self.raceManager.changed.connect("sequenceStartedWithoutWarning",self.handleSequenceStartedWithoutWarning)
         self.raceManager.changed.connect("generalRecall",self.handleGeneralRecall)
+        self.raceManager.changed.connect("startSequenceAbandoned",self.handleStartSequenceAbandoned)
         
         
     def fireGun(self):
@@ -182,6 +188,9 @@ class GunController():
         self.fireGun()
         self.cancelSchedules()
         self.scheduleGunsForFutureRaces()
+        
+    def handleStartSequenceAbandoned(self):
+        self.cancelSchedules()
     
     
     def scheduleGunsForFutureRaces(self):
@@ -209,6 +218,7 @@ class ScreenController():
         self.raceManager = raceManager
         self.audioManager = audioManager
         self.easyDaqRelay = easyDaqRelay
+        self.selectedRace = None    
         
         self.buildRaceManagerView()
         
@@ -271,32 +281,29 @@ class ScreenController():
         
         if raceName:
             self.raceManager.createRace(raceName)
+        self.updateButtonStates()
         
     def removeRaceClicked(self):#
         # check we have a selected race
         if self.selectedRace:
             self.raceManager.removeRace(self.selectedRace)
+        self.updateButtonStates()
             
     def startRaceSequenceWithWarningClicked(self):
         self.raceManager.startRaceSequenceWithWarning()
-        self.startLineFrame.disableAddRaceButton()
-        self.startLineFrame.disableRemoveRaceButton()
-        self.startLineFrame.disableStartRaceSequenceWithWarningButton()
-        self.startLineFrame.disableStartRaceSequenceWithoutWarningButton()
-        self.startLineFrame.enableAbandonStartRaceSequenceButton()
+        self.updateButtonStates()
+        
     
     def startRaceSequenceWithoutWarningClicked(self):
         self.raceManager.startRaceSequenceWithoutWarning()
-        self.startLineFrame.disableAddRaceButton()
-        self.startLineFrame.disableRemoveRaceButton()
-        self.startLineFrame.disableStartRaceSequenceWithWarningButton()
-        self.startLineFrame.disableStartRaceSequenceWithoutWarningButton()
-        self.startLineFrame.enableAbandonStartRaceSequenceButton()
+        self.updateButtonStates()
+        
         
     def generalRecallClicked(self):
         result = tkMessageBox.askquestion("General Recall","Are you sure?", icon="warning")
         if result == 'yes':
             self.raceManager.generalRecall()
+        self.updateButtonStates()
         
     def gunClicked(self):
         self.audioManager.queueWav()
@@ -306,32 +313,27 @@ class ScreenController():
         result = tkMessageBox.askquestion("Abandon race sequence","Are you sure?", icon="warning")
         if result == 'yes':
             self.raceManager.abandonStartSequence()
-            self.startLineFrame.disableGeneralRecallButton()
-            self.startLineFrame.disableAbandonStartRaceSequenceButton()
-            self.startLineFrame.enableAddRaceButton()
-            self.startLineFrame.enableRemoveRaceButton()
-            self.startLineFrame.enableStartRaceSequenceWithoutWarningButton()
-            self.startLineFrame.enableStartRaceSequenceWithWarningButton()
-            
+        self.updateButtonStates()
+           
         
     def raceSelectionChanged(self,event):
         item = self.startLineFrame.racesTreeView.selection()[0]
         
         self.selectedRace = self.raceManager.raceWithId(item)
         
-        print self.selectedRace
+        logging.debug("User has selected %s" % str(self.selectedRace))
+        self.updateButtonStates()
     
     def handleRaceAdded(self,aRace):
         self.appendRaceToTreeView(aRace)
-        self.startLineFrame.enableRemoveRaceButton()
-        self.startLineFrame.enableStartRaceSequenceWithoutWarningButton()
-        self.startLineFrame.enableStartRaceSequenceWithWarningButton()
+        self.updateButtonStates()
+        
     
     def handleRaceRemoved(self,aRace):
         self.startLineFrame.racesTreeView.delete(aRace.raceId)
-        if not self.raceManager.isEmpty():
-            self.startLineFrame.disableStartRaceSequenceWithoutWarningButton()
-            self.startLineFrame.disableStartRaceSequenceWithWarningButton()
+        self.selectedRace=None
+        self.updateButtonStates()
+    
     
     def handleRaceChanged(self,aRace):
         pass
@@ -373,7 +375,7 @@ class ScreenController():
                         
                         values=[self.renderDeltaToStartTime(aRace), aRace.status()])
         
-        self.startLineFrame.after(250, self.refreshRacesView)
+       
         
         #
         # Ask our race manager if we have a started race
@@ -382,13 +384,53 @@ class ScreenController():
             self.startLineFrame.enableGeneralRecallButton()
         else:
             self.startLineFrame.disableGeneralRecallButton()
+            
+                  
         #
         # Update our clock
         #
         self.startLineFrame.clockStringVar.set(datetime.datetime.now().strftime("%H:%M:%S"))
     
+        #
+        # Schedule to update this view again in 250 milliseonds
+        #
+        self.startLineFrame.after(250, self.refreshRacesView)
     
     
+    #
+    # This method enables and disables buttons. Call it after handling a button event
+    #
+    def updateButtonStates(self):
+        #
+        # Logic for enabling and disabling buttons
+        #   
+        if self.raceManager.hasSequenceStarted(): 
+            
+            self.startLineFrame.enableAbandonStartRaceSequenceButton()
+            self.startLineFrame.disableAddRaceButton()
+            self.startLineFrame.disableRemoveRaceButton()
+            self.startLineFrame.disableStartRaceSequenceWithoutWarningButton()
+            self.startLineFrame.disableStartRaceSequenceWithWarningButton()
+        else:
+            self.startLineFrame.enableAddRaceButton()
+            self.startLineFrame.disableAbandonStartRaceSequenceButton()
+            
+            
+            if self.raceManager.hasRaces():
+            
+            
+                
+                self.startLineFrame.enableStartRaceSequenceWithoutWarningButton()
+                self.startLineFrame.enableStartRaceSequenceWithWarningButton()
+                if self.selectedRace:
+                    self.startLineFrame.enableRemoveRaceButton()
+                else:
+                    self.startLineFrame.disableRemoveRaceButton()
+            else:
+                self.startLineFrame.disableRemoveRaceButton()
+                self.startLineFrame.disableStartRaceSequenceWithoutWarningButton()
+                self.startLineFrame.disableStartRaceSequenceWithWarningButton()
+  
     
     #
     # start the controller. Every 500 milliseconds we refresh the start time and the status
@@ -397,25 +439,30 @@ class ScreenController():
     def start(self):
         self.startLineFrame.after(500, self.refreshRacesView)
         
-logging.basicConfig(level=logging.INFO,
+logging.basicConfig(level=logging.DEBUG,
     format = "%(levelname)s:%(asctime)-15s %(message)s")
         
 logging.debug(sys.argv)
-myopts, args = getopt.getopt(sys.argv[1:],"p:t:",["port=","testSpeedRatio="])        
-
+myopts, args = getopt.getopt(sys.argv[1:],"p:t:w:",["port=","testSpeedRatio=","wavFile="])        
+comPort = None
 for o, a in myopts:
     logging.info("Option %s value %s" % (o,a))
     if o in ('-p','--port'):
         comPort=a
     elif o in ('-t','--testSpeedRatio'):
         testSpeedRatio=int(a)
+    elif o in ('-w','--wavFile'):
+        wavFileName=a
     else:
-        print("Usage: %s -p [serial port to connect to] -t [default 1, set to more than 1 to run faster]" % sys.argv[0])
+        print("Usage: %s -p [serial port to connect to] -w [wav file name for horn] -t [default 1, set to more than 1 to run faster]" % sys.argv[0])
         
 app = StartLineFrame()  
-raceManager = RaceManager()     
-easyDaqRelay = EasyDaqUSBRelay(comPort, app)
-audioManager = AudioManager("c:/Users/mbradley/workspace/HHSCStartLine/media/beep.wav",app)  
+raceManager = RaceManager()
+easyDaqRelay = None
+if comPort:     
+    from lightsui.hardware import LIGHT_OFF, LIGHT_ON, EasyDaqUSBRelay
+    easyDaqRelay = EasyDaqUSBRelay(comPort, app)
+audioManager = AudioManager(wavFileName,app)  
 screenController = ScreenController(app,raceManager,audioManager,easyDaqRelay)
 gunController = GunController(app, audioManager, raceManager)
 lightsController = LightsController(app, easyDaqRelay, raceManager)             
