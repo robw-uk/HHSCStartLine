@@ -126,6 +126,13 @@ class StartLineFrame(Frame):
         connectionStatusLabel = Label(self,textvariable=self.connectionStatus)
         connectionStatusLabel.grid(row=5,column=0)
         
+        #
+        # configure how the grid should resize. For now, we'll just configure the first
+        # row and first column to resize
+        #
+        #Grid.rowconfigure(self,0,weight=1)
+        #Grid.columnconfigure(self,0,weight=1)
+        
         # tell the frame to lay itself out
         
         self.grid()

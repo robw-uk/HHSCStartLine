@@ -13,7 +13,7 @@ import getopt
 import datetime
 import tkMessageBox
 
-RACES_LIST = ['Large handicap','Small handicap','Toppers','Large and small handicap','Terras','Oppies']
+RACES_LIST = ['Large handicap','Small handicap','Toppers','Large and small handicap','Teras','Oppies']
 
 
 #
@@ -404,7 +404,7 @@ class ScreenController():
         #
         # Logic for enabling and disabling buttons
         #   
-        if self.raceManager.hasSequenceStarted(): 
+        if self.raceManager.hasSequenceStarted() or self.raceManager.hasStartedRace(): 
             
             self.startLineFrame.enableAbandonStartRaceSequenceButton()
             self.startLineFrame.disableAddRaceButton()
