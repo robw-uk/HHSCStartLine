@@ -35,11 +35,11 @@ START_SECONDS=30
 WARNING_SECONDS=30
 
 class RaceException(Exception):
-    def __init__(self, race, message):
-        self.race = race
+    def __init__(self, fleet, message):
+        self.fleet = fleet
         self.message = message
     def __str__(self):
-        return repr(self.race)+ self.message
+        return repr(self.fleet)+ self.message
 
 #
 # Our event handling mechanism,
@@ -64,46 +64,46 @@ class Signal(object):
                 handler(*args)
 
 #
-# A Race represents a sailing race. You should not change
+# A fleet represents a fleet of boats in a race. You should not change
 # the state of a race (its name or start time); do this through
 # the race manager.
 #
-class Race:
+class Fleet:
     
-    nextRaceId = 1
+    nextFleetId = 1
     
     @classmethod
-    def incrementNextRaceId(self):
-        Race.nextRaceId = Race.nextRaceId + 1
+    def incrementNextFleetId(self):
+        Fleet.nextFleetId = Fleet.nextFleetId + 1
     
     def __init__(self, name=None, startTime=None):
         self.changed = Signal()
-        self.raceId = str(Race.nextRaceId)
+        self.fleetId = str(Fleet.nextFleetId)
         if name is None:
-            name = "Race " + str(self.raceId)
+            name = "Fleet " + str(self.fleetId)
       
         self.name = name
         self.startTime = startTime
         
-        # we use a string for the raceId as this is what tk likes to see :)
+        # we use a string for the fleetId as this is what tk likes to see :)
         
-        Race.incrementNextRaceId()
+        Fleet.incrementNextFleetId()
 
     #
-    # Does this race have a start time?
+    # Does this fleet have a start time?
     #
     def hasStartTime(self):
         return self.startTime != None
 
     #
-    # Is this race running? This is synonymous with the race having
+    # Is this fleet running? This is synonymous with the fleet having
     # a start time
     #
     def isRunning(self):
         return self.hasStartTime()
 
     #
-    # Has this race started? This means, is the race in the past?
+    # Has this fleet started? This means, did the fleet start in the past?
     #
     def isStarted(self):
         if self.hasStartTime():
@@ -114,7 +114,7 @@ class Race:
 
 
     #
-    # What's the delta to the start time of this race - negative
+    # What's the delta to the start time of this fleet - negative
     # for yet to start, positive for already started. if no start time,
     # raises a RaceException.
     #
@@ -122,7 +122,7 @@ class Race:
         if self.hasStartTime():
             return datetime.now() - self.startTime
         else:
-            raise RaceException(self, "Race has no start time")
+            raise RaceException(self, "Fleet has no start time")
 
     # we are starting if our start time is in 5 mins or less
     def isStarting(self):
@@ -139,7 +139,7 @@ class Race:
         return self.hasStartTime() and not self.isStarted()
 
     #
-    # Provide a string representation of the status of the race
+    # Provide a string representation of the status of the fleet
     #
     def status(self):
         if not self.hasStartTime():
@@ -157,17 +157,17 @@ class Race:
         return self.name + " status: " + self.status()
         
 #
-# The race manager manages races, including creating new races,
-# setting the start time for a race, running a race and performing
+# The race manager manages fleets, including creating new fleets,
+# setting the start time for a fleet, running a race and performing
 # a general recall.
 #
-# The race manager has a list of races. These are always sorted in
+# The race manager has a list of fleets. These are always sorted in
 # the order that they will start.
 #
 class RaceManager:
     def __init__(self):
-        self.races = []
-        self.racesById = {}
+        self.fleets = []
+        self.fleetsById = {}
         self.changed = Signal()
         
     #
@@ -183,57 +183,57 @@ class RaceManager:
         return adjustedSeconds
     
     #
-    # Create a race, add to our races and return the race. If the name is not specified,
-    # we create a name as 'Race N' where N is the number of races.
+    # Create a fleet, add to our fleets and return the fleet. If the name is not specified,
+    # we create a name as 'Fleet N' where N is the number of fleets.
     #
-    def createRace(self, name=None):
-        aRace = Race(name=name)
-        self.addRace(aRace)
-        return aRace
+    def createFleet(self, name=None):
+        aFleet = Fleet(name=name)
+        self.addFleet(aFleet)
+        return aFleet
     
-    def raceWithId(self,raceId):
-        if raceId in self.racesById:
-            return self.racesById[raceId]
+    def fleetWithId(self,fleetId):
+        if fleetId in self.fleetsById:
+            return self.fleetsById[fleetId]
         
 
-    def addRace(self, aRace):
-        self.races.append(aRace)
-        self.racesById[aRace.raceId] = aRace
-        self.changed.fire("raceAdded",aRace)
+    def addFleet(self, aFleet):
+        self.fleets.append(aFleet)
+        self.fleetsById[aFleet.fleetId] = aFleet
+        self.changed.fire("fleetAdded",aFleet)
         
 
-    def removeRace(self, aRace):
-        if aRace in self.races:
-            positionInList = self.races.index(aRace)
-            self.races.remove(aRace)
-            del self.racesById[aRace.raceId]
-            self.changed.fire("raceRemoved",aRace)
+    def removeFleet(self, aFleet):
+        if aFleet in self.fleets:
+            positionInList = self.fleets.index(aFleet)
+            self.fleets.remove(aFleet)
+            del self.fleetsById[aFleet.fleetId]
+            self.changed.fire("fleetRemoved",aFleet)
             
         else:
-            raise RaceException("Race not found",aRace)
+            raise RaceException("Fleet not found",aFleet)
             
 
-    def numberRaces(self):
-        return len(self.races)
+    def numberFleets(self):
+        return len(self.fleets)
     
-    def hasRaces(self):
-        return self.numberRaces() > 0
+    def hasFleets(self):
+        return self.numberFleets() > 0
 
     #
     # Start our race sequence with a five minute warning before the first
-    # race, i.e. 10 minutes to the first race
+    # fleet, i.e. 10 minutes to the first fleet start
     #
     def startRaceSequenceWithWarning(self):
         logging.info("Start sequence with warning (F flag start)")
-        raceNumber = 0
+        fleetNumber = 0
         now = datetime.now()
-        for race in self.races:
-            raceNumber = raceNumber + 1
+        for fleet in self.fleets:
+            fleetNumber = fleetNumber + 1
             
             startTime = now + timedelta(
-                seconds = (WARNING_SECONDS + (START_SECONDS * raceNumber)))
+                seconds = (WARNING_SECONDS + (START_SECONDS * fleetNumber)))
 
-            self.updateRaceStartTime(race,startTime)
+            self.updateFleetStartTime(fleet,startTime)
         self.changed.fire("sequenceStartedWithWarning")
 
 
@@ -242,101 +242,101 @@ class RaceManager:
     #
     def startRaceSequenceWithoutWarning(self):
         logging.info("Start sequence without warning (class flag start)")
-        raceNumber = 0
+        fleetNumber = 0
         now = datetime.now()
-        for race in self.races:
-            raceNumber = raceNumber + 1
+        for fleet in self.fleets:
+            fleetNumber = fleetNumber + 1
             
             startTime = now + timedelta(
-                seconds = (START_SECONDS * raceNumber))
+                seconds = (START_SECONDS * fleetNumber))
 
-            self.updateRaceStartTime(race,startTime)
+            self.updateFleetStartTime(fleet,startTime)
         self.changed.fire("sequenceStartedWithoutWarning")
     #
-    # Update the startTime for a race. Do this through the race manager
+    # Update the startTime for a fleet. Do this through the race manager
     # so that the race manager can signal the event change
     #
-    def updateRaceStartTime(self, aRace, startTime):
-        aRace.startTime = startTime
-        # signal that the race start time has changed
-        self.changed.fire("raceChanged",aRace)
+    def updateFleetStartTime(self, aFleet, startTime):
+        aFleet.startTime = startTime
+        # signal that the fleet start time has changed
+        self.changed.fire("fleetChanged",aFleet)
         
             
 
     #
-    # Find the last race started. This is a reverse search
-    # of the races list for a started race.
+    # Find the last fleet started. This is a reverse search
+    # of the fleets list for a started fleet.
     # Returns None if not found
     #
-    def lastRaceStarted(self):
-        for race in reversed(self.races):
-            if race.isStarted():
-                return race
+    def lastFleetStarted(self):
+        for fleet in reversed(self.fleets):
+            if fleet.isStarted():
+                return fleet
         return None
     
     #
-    # Fine the next race to start. If we don't have a race starting,
+    # Fine the next fleet to start. If we don't have a fleet starting,
     # return None.
     #
-    def nextRaceToStart(self):
-        for race in self.races:
-            if race.isStarting() or race.isWaitingToStart():
-                return race
+    def nextFleetToStart(self):
+        for fleet in self.fleets:
+            if fleet.isStarting() or fleet.isWaitingToStart():
+                return fleet
         return None
 
 
-    def hasStartedRace(self):
-        return self.lastRaceStarted()
+    def hasStartedFleet(self):
+        return self.lastFleetStarted()
     
     
     def hasSequenceStarted(self):
-        if self.nextRaceToStart():
+        if self.nextFleetToStart():
             return True
         else:
             return False
     
     
     #
-    # Abandon start sequence - set all races to no start time, and fire a signal
+    # Abandon start sequence - set all fleets to no start time, and fire a signal
     #
     def abandonStartSequence(self):
-        for race in self.races:
-            race.startTime = None
+        for fleet in self.fleets:
+            fleet.startTime = None
         self.changed.fire("startSequenceAbandoned")
 
 
     #
-    # Perform a general recall. This is always for the race that
+    # Perform a general recall. This is always for the fleet that
     # has most recently started
     #
     def generalRecall(self):
         logging.info("General recall")
-        raceToRecall = self.lastRaceStarted()
+        fleetToRecall = self.lastFleetStarted()
 
-        # if this is not the last race, kick the race to the back
+        # if this is not the last fleet, kick the fleet to the back
         # of the queue and set its start time to be five minutes
-        # after the last race.
+        # after the last fleet.
         
-        # if this is the last race, set its start time to be five
+        # if this is the last fleet, set its start time to be five
         # minutes from now
-        if raceToRecall == self.races[-1]:
-            logging.info("General recall last race")
-            self.updateRaceStartTime(raceToRecall,datetime.now()
+        if fleetToRecall == self.fleets[-1]:
+            logging.info("General recall last fleet")
+            self.updateFleetStartTime(fleetToRecall,datetime.now()
                                  + timedelta(seconds=START_SECONDS))
 
-        # otherwise kick the race to be the back of the queue,
-        # with a start time five minutes after the last race
+        # otherwise kick the fleet to be the back of the queue,
+        # with a start time five minutes after the last fleet
         else:
             
-            self.removeRace(raceToRecall)
-            lastRace = self.races[-1]
-            self.updateRaceStartTime(raceToRecall,
-                    lastRace.startTime + timedelta(seconds=START_SECONDS))
-            self.addRace(raceToRecall)
-            logging.log(logging.INFO, "General recall not last race. Moving to back of queue. Delta to start time now %d seconds",
-                        raceToRecall.deltaToStartTime().total_seconds())
+            self.removeFleet(fleetToRecall)
+            lastFleet = self.fleets[-1]
+            self.updateFleetStartTime(fleetToRecall,
+                    lastFleet.startTime + timedelta(seconds=START_SECONDS))
+            self.addFleet(fleetToRecall)
+            logging.log(logging.INFO, "General recall not last fleet. Moving to back of queue. Delta to start time now %d seconds",
+                        fleetToRecall.deltaToStartTime().total_seconds())
             
-        self.changed.fire("generalRecall", raceToRecall)
+        self.changed.fire("generalRecall", fleetToRecall)
 
         
         

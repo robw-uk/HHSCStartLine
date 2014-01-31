@@ -34,41 +34,41 @@ class StartLineFrame(Frame):
         
     
         
-        self.racesTreeView = Treeview(self,
+        self.fleetsTreeView = Treeview(self,
                                       columns=["startTime","status"],
                                       style='Treeview',
                                       selectmode="browse")
         
-        ysb = Scrollbar(self, orient='vertical', command=self.racesTreeView.yview)
-        xsb = Scrollbar(self, orient='horizontal', command=self.racesTreeView.xview)
-        self.racesTreeView.heading("#0"  , text='Race', anchor=W)
-        self.racesTreeView.column("#0", width=350)
-        self.racesTreeView.heading("startTime",text='Start time', anchor=W)
-        self.racesTreeView.heading("status",text='Status', anchor=W)
-        self.racesTreeView.configure(yscroll=ysb.set, xscroll=xsb.set)
-        self.racesTreeView.grid(row=0,column=0,columnspan=2)
+        ysb = Scrollbar(self, orient='vertical', command=self.fleetsTreeView.yview)
+        xsb = Scrollbar(self, orient='horizontal', command=self.fleetsTreeView.xview)
+        self.fleetsTreeView.heading("#0"  , text='Fleet', anchor=W)
+        self.fleetsTreeView.column("#0", width=350)
+        self.fleetsTreeView.heading("startTime",text='Start time', anchor=W)
+        self.fleetsTreeView.heading("status",text='Status', anchor=W)
+        self.fleetsTreeView.configure(yscroll=ysb.set, xscroll=xsb.set)
+        self.fleetsTreeView.grid(row=0,column=0,columnspan=2)
         ysb.grid(row=0, column=2, sticky='ns')
         xsb.grid(row=1, column=0, columnspan=2,sticky='ew')
         
         self.finishTreeView = Treeview(self,columns=["finishTime"],style="Treeview")
-        ysb = Scrollbar(self, orient='vertical', command=self.racesTreeView.yview)
-        xsb = Scrollbar(self, orient='horizontal', command=self.racesTreeView.xview)
+        ysb = Scrollbar(self, orient='vertical', command=self.fleetsTreeView.yview)
+        xsb = Scrollbar(self, orient='horizontal', command=self.fleetsTreeView.xview)
         # NB need to make this auto scroll
-        self.racesTreeView.heading("#0",text='Race',anchor=W)
+        self.fleetsTreeView.heading("#0",text='Fleet',anchor=W)
         
-        # add race button
-        self.addRaceButton = Button(self,
-                                    text="Add race")
-        self.addRaceButton.grid(row=2,
+        # add fleet button
+        self.addFleetButton = Button(self,
+                                    text="Add fleet")
+        self.addFleetButton.grid(row=2,
                                 column=0,
                                 sticky=W+E+N+S,
                                    ipady=20)
         
         
-        # remove race button
-        self.removeRaceButton = Button(self,
-                                        text="Remove race",state=DISABLED)
-        self.removeRaceButton.grid(row=3,
+        # remove fleet button
+        self.removeFleetButton = Button(self,
+                                        text="Remove fleet",state=DISABLED)
+        self.removeFleetButton.grid(row=3,
                                    column=0, 
                                    sticky=W+E+N+S,
                                    ipady=20)
@@ -144,18 +144,18 @@ class StartLineFrame(Frame):
     def disableGeneralRecallButton(self):
         self.generalRecallButton['state']=DISABLED
         
-    def enableAddRaceButton(self):
-        self.addRaceButton['state']=NORMAL
+    def enableAddFleetButton(self):
+        self.addFleetButton['state']=NORMAL
         
-    def disableAddRaceButton(self):
-        self.addRaceButton['state']=DISABLED
+    def disableAddFleetButton(self):
+        self.addFleetButton['state']=DISABLED
         
     
-    def enableRemoveRaceButton(self):
-        self.removeRaceButton['state']=NORMAL
+    def enableRemoveFleetButton(self):
+        self.removeFleetButton['state']=NORMAL
         
-    def disableRemoveRaceButton(self):
-        self.removeRaceButton['state']=DISABLED
+    def disableRemoveFleetButton(self):
+        self.removeFleetButton['state']=DISABLED
         
     def disableStartRaceSequenceWithWarningButton(self):
         self.startRaceSequenceWithWarningButton['state'] = DISABLED
@@ -175,14 +175,14 @@ class StartLineFrame(Frame):
     def enableAbandonStartRaceSequenceButton(self):
         self.abandonStartRaceSequenceButton['state'] = NORMAL
         
-class AddRaceDialog:
-    def __init__(self, parent, raceNamesList):
+class AddFleetDialog:
+    def __init__(self, parent, fleetNamesList):
         self.top = Toplevel(parent)
         self.frame = Frame(self.top)
         self.frame.pack(fill=BOTH,expand=True)
         
-        self.raceNamesList = raceNamesList
-        self.raceName = None
+        self.fleetNamesList = fleetNamesList
+        self.fleetName = None
         self.createWidgets()
         
         
@@ -196,26 +196,26 @@ class AddRaceDialog:
         label = Label(self.frame, text='Choose from the list:')
         label.pack()
         
-        self.raceNamesListBox = Treeview(self.frame,
+        self.fleetNamesListBox = Treeview(self.frame,
                                          selectmode="browse")
-        self.raceNamesListBox.column("#0", width=400)
+        self.fleetNamesListBox.column("#0", width=400)
         
-        self.raceNamesListBox.pack(fill=BOTH,expand=True)
+        self.fleetNamesListBox.pack(fill=BOTH,expand=True)
         
-        # we use the name of the race as the list id. Should be fine so long as there are no duplicates
-        for raceName in self.raceNamesList:
-            self.raceNamesListBox.insert(parent="",index="end",text=raceName,iid=raceName)
+        # we use the name of the fleet as the list id. Should be fine so long as there are no duplicates
+        for fleetName in self.fleetNamesList:
+            self.fleetNamesListBox.insert(parent="",index="end",text=fleetName,iid=fleetName)
             
-        self.raceNamesListBox.bind('<<TreeviewSelect>>',self.raceNameListItemSelected)
-        self.raceNamesListBox.bind("<Double-1>", self.raceNameDoubleClicked)
+        self.fleetNamesListBox.bind('<<TreeviewSelect>>',self.fleetNameListItemSelected)
+        self.fleetNamesListBox.bind("<Double-1>", self.fleetNameDoubleClicked)
     
         label = Label(self.frame, text='or type in your own', anchor=W)
         label.pack()
         
         
-        self.raceNameVariable = StringVar()
-        self.raceNameLabel = Entry(self.frame,textvariable = self.raceNameVariable)
-        self.raceNameLabel.pack(fill=BOTH,expand=True)
+        self.fleetNameVariable = StringVar()
+        self.fleetNameLabel = Entry(self.frame,textvariable = self.fleetNameVariable)
+        self.fleetNameLabel.pack(fill=BOTH,expand=True)
         
         
         
@@ -224,26 +224,26 @@ class AddRaceDialog:
         self.okButton = Button(self.frame,text="OK",command=self.okClicked)
         self.okButton.pack()
         
-    def raceNameListItemSelected(self,event):
+    def fleetNameListItemSelected(self,event):
         
         
         # note that we set the iid of each item in the list to be the name. Very simple.
-        selectedRaceName = self.raceNamesListBox.selection()[0]
-        self.raceNameVariable.set(selectedRaceName)
+        selectedFleetName = self.fleetNamesListBox.selection()[0]
+        self.fleetNameVariable.set(selectedFleetName)
     
-    def raceNameDoubleClicked(self,event):
-        selectedRaceName = self.raceNamesListBox.selection()[0]
-        self.raceNameVariable.set(selectedRaceName)
-        self.raceName=self.raceNameVariable.get()
+    def fleetNameDoubleClicked(self,event):
+        selectedFleetName = self.fleetNamesListBox.selection()[0]
+        self.fleetNameVariable.set(selectedFleetName)
+        self.fleetName=self.fleetNameVariable.get()
         self.top.destroy()
         
     
     def okClicked(self):
-        self.raceName=self.raceNameVariable.get()
+        self.fleetName=self.fleetNameVariable.get()
         self.top.destroy()
         
     def cancelClicked(self):
-        self.raceName=None
+        self.fleetName=None
         self.top.destroy()
     
     def show(self):
