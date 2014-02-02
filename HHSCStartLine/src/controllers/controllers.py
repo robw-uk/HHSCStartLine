@@ -59,19 +59,19 @@ class LightsController():
         
         # if we have a fleet to start
         if nextFleetToStart:
-            secondsToStart = -1 * nextFleetToStart.deltaToStartTime().total_seconds()
+            secondsToStart = -1 * nextFleetToStart.adjustedDeltaSecondsToStartTime()
             
-            if secondsToStart <= self.raceManager.adjustedStartSeconds(300) and secondsToStart > self.raceManager.adjustedStartSeconds(240):
+            if secondsToStart <=300 and secondsToStart > 240:
                 lights = [LIGHT_ON, LIGHT_ON, LIGHT_ON, LIGHT_ON, LIGHT_ON]
-            elif secondsToStart <= self.raceManager.adjustedStartSeconds(240) and secondsToStart > self.raceManager.adjustedStartSeconds(180):
+            elif secondsToStart <= 240 and secondsToStart > 180:
                 lights = [LIGHT_ON, LIGHT_ON, LIGHT_ON, LIGHT_ON, LIGHT_OFF]
-            elif secondsToStart <= self.raceManager.adjustedStartSeconds(180) and secondsToStart > self.raceManager.adjustedStartSeconds(120): 
+            elif secondsToStart <= 180 and secondsToStart > 120: 
                 lights = [LIGHT_ON, LIGHT_ON, LIGHT_ON, LIGHT_OFF, LIGHT_OFF]
-            elif secondsToStart <= self.raceManager.adjustedStartSeconds(120) and secondsToStart > self.raceManager.adjustedStartSeconds(60): 
+            elif secondsToStart <= 120and secondsToStart > 60: 
                 lights = [LIGHT_ON, LIGHT_ON, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF]
-            elif secondsToStart <= self.raceManager.adjustedStartSeconds(60) and secondsToStart > self.raceManager.adjustedStartSeconds(30): 
+            elif secondsToStart <= 60 and secondsToStart > 30: 
                 lights = [LIGHT_ON, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF]
-            elif secondsToStart <= self.raceManager.adjustedStartSeconds(30) and (secondsToStart % 2 == 0):
+            elif secondsToStart <= 30 and (secondsToStart % 2 == 0):
                 lights = [LIGHT_ON, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF]
             else:
                 lights = [LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF]
@@ -147,15 +147,27 @@ class GunController():
     def scheduleGunForFleetStart(self,aFleet, secondsBefore):
         # calculate seconds to start of fleet
         # convert negative seconds to start to positive 
-        secondsToStart = aFleet.deltaToStartTime().total_seconds()  * -1
+        secondsToStart = aFleet.deltaSecondsToStartTime()  * -1
         
         
         # check that the fleet is still in the future (for example if we are debugging)
         if secondsToStart > 0:
             
-            
-            secondsToGun = secondsToStart - secondsBefore
-            logging.log(logging.DEBUG,"Seconds to start: %d, seconds to gun: %d" % (secondsToStart,secondsToGun))
+            #
+            # to calculate the seconds to gun, we take the seconds to start 
+            # and subtract the requested seconds before divided by the test speed ratio.
+            #
+            # For example, with a test speed ratio of 5, the seconds to start for the
+            # first race with an F flag start will be 600  / 5 = 120 seconds.
+            #
+            # For the five minute (300 seconds) gun, the calculation is:
+            # 120 - (300/5) = 60 seconds.
+            #
+            # For the four minute gun (240 seconds) gun, the calculation is:
+            # 120 - (240/5) = 72 seconds
+            #
+            secondsToGun = secondsToStart - secondsBefore / RaceManager.testSpeedRatio
+            logging.info("Seconds to start: %d, scheduling gun for %d seconds" % (secondsToStart,secondsToGun))
             self.scheduleGun(int(1000*secondsToGun ))
             
          
@@ -171,8 +183,7 @@ class GunController():
         self.fireGun()
         
         
-        self.scheduleGunForFleetStart(self.raceManager.fleets[0],
-                self.raceManager.adjustedStartSeconds(300))
+        self.scheduleGunForFleetStart(self.raceManager.fleets[0],300)
         
         self.scheduleGunsForFutureFleetStarts()
         
@@ -199,12 +210,9 @@ class GunController():
         #
         for aFleet in self.raceManager.fleets:
             if not aFleet.isStarted() :
-                self.scheduleGunForFleetStart(aFleet,
-                                        self.raceManager.adjustedStartSeconds(240))
-                self.scheduleGunForFleetStart(aFleet,
-                                        self.raceManager.adjustedStartSeconds(60))
-                self.scheduleGunForFleetStart(aFleet,
-                                        self.raceManager.adjustedStartSeconds(0))
+                self.scheduleGunForFleetStart(aFleet,240)
+                self.scheduleGunForFleetStart(aFleet,60)
+                self.scheduleGunForFleetStart(aFleet,0)
                 
        
     
@@ -349,7 +357,7 @@ class ScreenController():
     
     def renderDeltaToStartTime(self, aFleet):
         if aFleet.hasStartTime():
-            deltaToStartTimeSeconds = int(aFleet.deltaToStartTime().total_seconds())
+            deltaToStartTimeSeconds = int(aFleet.adjustedDeltaSecondsToStartTime())
             
             hmsString = str(datetime.timedelta(seconds=(abs(deltaToStartTimeSeconds))))
             
@@ -439,12 +447,15 @@ class ScreenController():
     def start(self):
         self.startLineFrame.after(500, self.refreshFleetsView)
         
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.INFO,
     format = "%(levelname)s:%(asctime)-15s %(message)s")
         
 logging.debug(sys.argv)
 myopts, args = getopt.getopt(sys.argv[1:],"p:t:w:",["port=","testSpeedRatio=","wavFile="])        
+# default COM port is to not have one
 comPort = None
+# default test speed ratio is 1
+testSpeedRatio = 1
 for o, a in myopts:
     logging.info("Option %s value %s" % (o,a))
     if o in ('-p','--port'):
@@ -458,6 +469,9 @@ for o, a in myopts:
         
 app = StartLineFrame()  
 raceManager = RaceManager()
+if testSpeedRatio:
+    RaceManager.testSpeedRatio = testSpeedRatio
+logging.info("Setting test speed ratio to %d" % testSpeedRatio)
 easyDaqRelay = None
 if comPort:     
     from lightsui.hardware import LIGHT_OFF, LIGHT_ON, EasyDaqUSBRelay

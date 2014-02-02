@@ -31,8 +31,8 @@ import logging
 # START_SECONDS = 300
 # WARNING_SECONDS=300
 # But we can reduce this for testing
-START_SECONDS=30
-WARNING_SECONDS=30
+START_SECONDS=300
+WARNING_SECONDS=300
 
 class RaceException(Exception):
     def __init__(self, fleet, message):
@@ -113,12 +113,21 @@ class Fleet:
             return False
 
 
+    def adjustedDeltaSecondsToStartTime(self):
+        return self._deltaToStartTime().total_seconds() * RaceManager.testSpeedRatio
+        
+    #
+    # This is the real seconds to start time.
+    # 
+    def deltaSecondsToStartTime(self):
+        return self._deltaToStartTime().total_seconds()
+
     #
     # What's the delta to the start time of this fleet - negative
     # for yet to start, positive for already started. if no start time,
     # raises a RaceException.
     #
-    def deltaToStartTime(self):
+    def _deltaToStartTime(self):
         if self.hasStartTime():
             return datetime.now() - self.startTime
         else:
@@ -128,7 +137,7 @@ class Fleet:
     def isStarting(self):
         # we can only be starting if we have a start time
         if self.hasStartTime():
-            if (START_SECONDS * -1) <= self.deltaToStartTime().total_seconds() < 0:
+            if (START_SECONDS * -1) <= self.adjustedDeltaSecondsToStartTime() < 0:
                 return True
             else:
                 return False
@@ -165,22 +174,17 @@ class Fleet:
 # the order that they will start.
 #
 class RaceManager:
+    
+    testSpeedRatio = 1
+    
     def __init__(self):
         self.fleets = []
         self.fleetsById = {}
         self.changed = Signal()
         
-    #
-    # Return seconds adjusted for our total START_SECONDS. In normal running, the return value
-    # is the same as the parameter. If we're speeding up the sequence for testing, the return value
-    # will be less. 
-    #
-    def adjustedStartSeconds(self, unadjustedSeconds):
-        ratio = float(START_SECONDS)/300
-        adjustedSeconds = unadjustedSeconds * ratio
-        
-        
-        return adjustedSeconds
+
+    def adjustedSeconds(self,unadjustedSeconds):
+        return unadjustedSeconds * RaceManager.testSpeedRatio
     
     #
     # Create a fleet, add to our fleets and return the fleet. If the name is not specified,
@@ -221,7 +225,7 @@ class RaceManager:
 
     #
     # Start our race sequence with a five minute warning before the first
-    # fleet, i.e. 10 minutes to the first fleet start
+    # fleet, i.e. 10 minutes to the first fleet start. This is F flag start
     #
     def startRaceSequenceWithWarning(self):
         logging.info("Start sequence with warning (F flag start)")
@@ -231,7 +235,8 @@ class RaceManager:
             fleetNumber = fleetNumber + 1
             
             startTime = now + timedelta(
-                seconds = (WARNING_SECONDS + (START_SECONDS * fleetNumber)))
+                seconds = (WARNING_SECONDS/RaceManager.testSpeedRatio + 
+                        (START_SECONDS * fleetNumber)/RaceManager.testSpeedRatio))
 
             self.updateFleetStartTime(fleet,startTime)
         self.changed.fire("sequenceStartedWithWarning")
@@ -248,7 +253,7 @@ class RaceManager:
             fleetNumber = fleetNumber + 1
             
             startTime = now + timedelta(
-                seconds = (START_SECONDS * fleetNumber))
+                seconds = (START_SECONDS * fleetNumber)/RaceManager.testSpeedRatio)
 
             self.updateFleetStartTime(fleet,startTime)
         self.changed.fire("sequenceStartedWithoutWarning")
@@ -322,7 +327,7 @@ class RaceManager:
         if fleetToRecall == self.fleets[-1]:
             logging.info("General recall last fleet")
             self.updateFleetStartTime(fleetToRecall,datetime.now()
-                                 + timedelta(seconds=START_SECONDS))
+                                 + timedelta(seconds=START_SECONDS/RaceManager.testSpeedRatio))
 
         # otherwise kick the fleet to be the back of the queue,
         # with a start time five minutes after the last fleet
@@ -331,10 +336,10 @@ class RaceManager:
             self.removeFleet(fleetToRecall)
             lastFleet = self.fleets[-1]
             self.updateFleetStartTime(fleetToRecall,
-                    lastFleet.startTime + timedelta(seconds=START_SECONDS))
+                    lastFleet.startTime + timedelta(seconds=START_SECONDS/RaceManager.testSpeedRatio))
             self.addFleet(fleetToRecall)
             logging.log(logging.INFO, "General recall not last fleet. Moving to back of queue. Delta to start time now %d seconds",
-                        fleetToRecall.deltaToStartTime().total_seconds())
+                        fleetToRecall.adjustedDeltaSecondsToStartTime())
             
         self.changed.fire("generalRecall", fleetToRecall)
 
