@@ -23,10 +23,15 @@ class StartLineFrame(Frame):
         Constructor
         '''
         Frame.__init__(self, master)
+        self.grid(sticky=N+S+E+W)
         self.createWidgets()
 
         
     def createWidgets(self):
+        
+        top=self.winfo_toplevel()                
+        top.rowconfigure(0, weight=1)            
+        top.columnconfigure(0, weight=1)
         
         style = Style()
         style.configure('.', font=('Helvetica',16))
@@ -37,101 +42,135 @@ class StartLineFrame(Frame):
         self.fleetsTreeView = Treeview(self,
                                       columns=["startTime","status"],
                                       style='Treeview',
-                                      selectmode="browse")
+                                      selectmode="browse",
+                                      height=5)
         
         ysb = Scrollbar(self, orient='vertical', command=self.fleetsTreeView.yview)
         xsb = Scrollbar(self, orient='horizontal', command=self.fleetsTreeView.xview)
         self.fleetsTreeView.heading("#0"  , text='Fleet', anchor=W)
-        self.fleetsTreeView.column("#0", width=350)
+        #self.fleetsTreeView.column("#0", width=350)
         self.fleetsTreeView.heading("startTime",text='Start time', anchor=W)
         self.fleetsTreeView.heading("status",text='Status', anchor=W)
         self.fleetsTreeView.configure(yscroll=ysb.set, xscroll=xsb.set)
-        self.fleetsTreeView.grid(row=0,column=0,columnspan=2)
-        ysb.grid(row=0, column=2, sticky='ns')
-        xsb.grid(row=1, column=0, columnspan=2,sticky='ew')
-        
-        self.finishTreeView = Treeview(self,columns=["finishTime"],style="Treeview")
-        ysb = Scrollbar(self, orient='vertical', command=self.fleetsTreeView.yview)
-        xsb = Scrollbar(self, orient='horizontal', command=self.fleetsTreeView.xview)
-        # NB need to make this auto scroll
-        self.fleetsTreeView.heading("#0",text='Fleet',anchor=W)
+        self.fleetsTreeView.grid(row=0,column=0,columnspan=2,rowspan=2,sticky=N+S+E+W)
+        ysb.grid(row=0, column=2, sticky=N+S, rowspan=2)
+        xsb.grid(row=2, column=0, columnspan=2,sticky=W+E)
         
         # add fleet button
         self.addFleetButton = Button(self,
                                     text="Add fleet")
-        self.addFleetButton.grid(row=2,
+        self.addFleetButton.grid(row=3,
                                 column=0,
                                 sticky=W+E+N+S,
-                                   ipady=20)
+                                   #ipady=20
+                                   )
         
         
         # remove fleet button
         self.removeFleetButton = Button(self,
                                         text="Remove fleet",state=DISABLED)
-        self.removeFleetButton.grid(row=3,
+        self.removeFleetButton.grid(row=4,
                                    column=0, 
                                    sticky=W+E+N+S,
-                                   ipady=20)
+                                   #ipady=20
+                                   )
         
         # start race sequence with warning
         self.startRaceSequenceWithWarningButton = Button(self,
                                         text="F Flag Start",state=DISABLED)
-        self.startRaceSequenceWithWarningButton.grid(row=2,
+        self.startRaceSequenceWithWarningButton.grid(row=3,
                                                      column=1,
                                                      sticky=W+E+N+S,
-                                                     ipady=20)
+                                                     #ipady=20
+                                                     )
         
         # start race sequence without warning
         self.startRaceSequenceWithoutWarningButton = Button(self,
                                         text="Class Flag Start",state=DISABLED)
-        self.startRaceSequenceWithoutWarningButton.grid(row=3,
+        self.startRaceSequenceWithoutWarningButton.grid(row=4,
                                                         column=1,
                                                         sticky=W+E+N+S,
-                                                        ipady=20)
+                                                        #ipady=20
+                                                        )
         
         # general recall button
         self.generalRecallButton = Button(self,
                                         text="General recall",state=DISABLED)
-        self.generalRecallButton.grid(row=4,
+        self.generalRecallButton.grid(row=5,
                                       column=1,
                                       sticky=W+E+N+S,
-                                      ipady=20)
+                                      #ipady=20
+                                      )
         
         # abandon sequence button
         self.abandonStartRaceSequenceButton = Button(self,
                                           text="Abandon start",state=DISABLED)
-        self.abandonStartRaceSequenceButton.grid(row=4,
+        self.abandonStartRaceSequenceButton.grid(row=5,
                                       column=0,
                                       sticky=W+E+N+S,
-                                      ipady=20)
+                                      #ipady=20
+                                      )
+        
+        
+        #
+        # Finish list (implemented using ttk Treeview
+        #
+        
+        self.finishTreeView = Treeview(self,columns=["fleet"],style="Treeview")
+        ysb = Scrollbar(self, orient='vertical', command=self.fleetsTreeView.yview)
+        xsb = Scrollbar(self, orient='horizontal', command=self.fleetsTreeView.xview)
+        # NB need to make this auto scroll
+        self.finishTreeView.heading("#0",text='Finish time',anchor=W)
+        self.finishTreeView.heading("fleet",text="Fleet", anchor=W)
+        self.finishTreeView.grid(row=0, column=3, rowspan=6,sticky=W+E+N+S)
+        ysb.grid(row=0,column=4,rowspan=6,stick=N+S)
+        xsb.grid(row=6,column=3,sticky=E+W)
+        
+        #
+        # Gun and finish
+        #
+        self.gunAndFinishButton = Button(self, text="Gun and\nfinish")
+        self.gunAndFinishButton.grid(row=0,column=5,sticky=W+E+N+S)
         
         #
         # gun button
         #
         self.gunButton = Button(self,
                                     text="Gun")
-        self.gunButton.grid(row=0,column=3,sticky=W+E+N+S)
+        self.gunButton.grid(row=1,column=5,sticky=W+E+N+S)
+        
         
         #
         # clock
         #
         self.clockStringVar = StringVar(self,value="00:00:00")
         clockLabel = Label(self,textvariable=self.clockStringVar)
-        clockLabel.grid(row=5,column=3)
+        clockLabel.grid(row=7,column=3)
         
         #
         # EasyDaqRelay connection status label
         #
         self.connectionStatus = StringVar(self,value="Connecting")
         connectionStatusLabel = Label(self,textvariable=self.connectionStatus)
-        connectionStatusLabel.grid(row=5,column=0)
+        connectionStatusLabel.grid(row=7,column=0)
         
         #
         # configure how the grid should resize. For now, we'll just configure the first
         # row and first column to resize
         #
-        #Grid.rowconfigure(self,0,weight=1)
-        #Grid.columnconfigure(self,0,weight=1)
+        Grid.rowconfigure(self,0,weight=1)
+        Grid.rowconfigure(self,1,weight=1)
+        # not row 2, this is a scroll bar
+        Grid.rowconfigure(self,3,weight=1)
+        Grid.rowconfigure(self,4,weight=1)
+        Grid.rowconfigure(self,5,weight=1)
+        
+        Grid.columnconfigure(self,0,weight=1)
+        Grid.columnconfigure(self,1,weight=1)
+        # not column 2, this is a scroll bar
+        Grid.columnconfigure(self,3,weight=1)
+        # not column 4, this is a scroll bar
+        Grid.columnconfigure(self,5,weight=1)
         
         # tell the frame to lay itself out
         
