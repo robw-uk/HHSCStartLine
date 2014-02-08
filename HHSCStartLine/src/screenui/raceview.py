@@ -117,11 +117,15 @@ class StartLineFrame(Frame):
         #
         
         self.finishTreeView = Treeview(self,columns=["fleet"],style="Treeview")
-        ysb = Scrollbar(self, orient='vertical', command=self.fleetsTreeView.yview)
-        xsb = Scrollbar(self, orient='horizontal', command=self.fleetsTreeView.xview)
-        # NB need to make this auto scroll
+        ysb = Scrollbar(self, orient='vertical', command=self.finishTreeView.yview)
+        xsb = Scrollbar(self, orient='horizontal', command=self.finishTreeView.xview)
+        self.finishTreeView.configure(yscroll=ysb.set, xscroll=xsb.set)
+        
+        
+        
         self.finishTreeView.heading("#0",text='Finish time',anchor=W)
         self.finishTreeView.heading("fleet",text="Fleet", anchor=W)
+        
         self.finishTreeView.grid(row=0, column=3, rowspan=6,sticky=W+E+N+S)
         ysb.grid(row=0,column=4,rowspan=6,stick=N+S)
         xsb.grid(row=6,column=3,sticky=E+W)
@@ -153,6 +157,13 @@ class StartLineFrame(Frame):
         self.connectionStatus = StringVar(self,value="Connecting")
         connectionStatusLabel = Label(self,textvariable=self.connectionStatus)
         connectionStatusLabel.grid(row=7,column=0)
+        
+        #
+        # Gun queue label
+        #
+        self.gunQueueCount = StringVar(self,value="Gun Q: 0")
+        gunQueueCountLabel = Label(self,textvariable=self.gunQueueCount)
+        gunQueueCountLabel.grid(row=7,column=5)
         
         #
         # configure how the grid should resize. For now, we'll just configure the first

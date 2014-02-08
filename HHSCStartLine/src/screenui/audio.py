@@ -18,6 +18,7 @@ import wave
 import time
 import sys
 from StringIO import StringIO
+from model.utils import Signal
 
 
 class AudioManager:
@@ -31,6 +32,7 @@ class AudioManager:
         self.wavDuration = self.calculateDuration()
         self.playRequestQueue = 0
         self.isPlaying = False
+        self.changed = Signal()
         
     def readFileToMemory(self):
         # see http://stackoverflow.com/questions/8195544/how-to-play-wav-data-right-from-memory
@@ -93,9 +95,11 @@ class AudioManager:
     #
     def incrementPlayRequestQueue(self):
         self.playRequestQueue = self.playRequestQueue + 1
+        self.changed.fire("playRequestQueueChanged",self.playRequestQueue)
     
     def decrementPlayRequestQueue(self):
         self.playRequestQueue = self.playRequestQueue - 1
+        self.changed.fire("playRequestQueueChanged",self.playRequestQueue)
     
     #
     # This method is called from within the Tkinter event thread.

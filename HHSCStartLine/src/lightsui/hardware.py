@@ -8,6 +8,7 @@ import logging
 import datetime
 
 import serial
+from model.utils import Signal
 
 # constants for lights state
 LIGHT_OFF = 0
@@ -17,28 +18,6 @@ LIGHT_ON = 1
 DISCONNECTED = 0
 RECONNECTING = 1
 CONNECTED = 2
-
-#
-# Our event handling mechanism,
-# from http://codereview.stackexchange.com/questions/20938/the-observer-design-pattern-in-python-in-a-more-pythonic-way-plus-unit-testing
-#
-class Signal(object):
-    def __init__(self):
-        self._handlers = {}
-
-    def connect(self, event,handler):
-        if event in self._handlers:
-            # do nothing, we've got a list of handlers for this event
-            pass
-        else:
-            self._handlers[event] = []
-         
-        self._handlers[event].append(handler)
-
-    def fire(self, event, *args):
-        if event in self._handlers:
-            for handler in self._handlers[event]:
-                handler(*args)
 
 
 '''

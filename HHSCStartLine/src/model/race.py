@@ -25,6 +25,7 @@
 #
 
 from datetime import datetime,timedelta
+from utils import Signal
 import logging
 
 # As per ISAF rules, start minutes is 5
@@ -41,27 +42,6 @@ class RaceException(Exception):
     def __str__(self):
         return repr(self.fleet)+ self.message
 
-#
-# Our event handling mechanism,
-# from http://codereview.stackexchange.com/questions/20938/the-observer-design-pattern-in-python-in-a-more-pythonic-way-plus-unit-testing
-#
-class Signal(object):
-    def __init__(self):
-        self._handlers = {}
-
-    def connect(self, event,handler):
-        if event in self._handlers:
-            # do nothing, we've got a list of handlers for this event
-            pass
-        else:
-            self._handlers[event] = []
-         
-        self._handlers[event].append(handler)
-
-    def fire(self, event, *args):
-        if event in self._handlers:
-            for handler in self._handlers[event]:
-                handler(*args)
 
 #
 # A fleet represents a fleet of boats in a race. You should not change
@@ -164,9 +144,46 @@ class Fleet:
 
     def __str__(self):
         return self.name + " status: " + self.status()
+
+
+#
+# Finish represents a finish of a competitor in a race. The finish is decoupled from the
+# competitor/boat, to enable the race officer to create many finishes and associate them
+# with competitors later. It also supports a use case where there are finishes that
+# are never associated with a competitor, typically because the race officer creates
+# a finish in error. 
+#
+class Finish:
+    
+    nextFinishId = 1
+    
+    @classmethod
+    def incrementNextFleetId(self):
+        Finish.nextFinishId = Finish.nextFinishId + 1
+    
+    
+    def __init__(self,finishTime=None,fleet=None):
+        self.fleet = fleet
+        self.finishTime = finishTime
+        self.finishId = Finish.nextFinishId
+        Finish.incrementNextFleetId()
+        
+        
+    def hasFleet(self):
+        if self.fleet:
+            return True
+        else:
+            return False
+        
+    def elapsedFinishTime(self):
+        if self.hasFleet:
+            return self.finishTime - self.fleet.startTime
+        else:
+            raise RaceException("Cannot calculate elapsed time if no fleet")
+    
         
 #
-# The race manager manages fleets, including creating new fleets,
+# The race manager manages fleets and competitors, including creating new fleets,
 # setting the start time for a fleet, running a race and performing
 # a general recall.
 #
@@ -181,6 +198,7 @@ class RaceManager:
         self.fleets = []
         self.fleetsById = {}
         self.changed = Signal()
+        self.finishes = []
         
 
     def adjustedSeconds(self,unadjustedSeconds):
@@ -344,4 +362,27 @@ class RaceManager:
         self.changed.fire("generalRecall", fleetToRecall)
 
         
+    #
+    # Create a finish and add it to the race manager's list of finishes. 
+    # This method returns a finish object. By default, the finish object will
+    # have a finish time of now and no fleet.
+    #
+    def createFinish(self, fleet=None, finishTime=None):
+        
+        # if no finish time is supplied, set the finish time to be now
+        if not finishTime:
+            finishTime = datetime.now()
+        # create the finish object
+        aFinish = Finish(fleet=fleet,finishTime=finishTime)
+        
+        self.addFinish(aFinish)
+        
+        return aFinish
+        
+    
+    def addFinish(self,finish):
+        # add it to our list of finish objects
+        self.finishes.append(finish)
+        # fire a change signal
+        self.changed.fire("finishAdded",finish)
         

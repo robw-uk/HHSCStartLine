@@ -12,6 +12,7 @@ import sys
 import getopt
 import datetime
 import tkMessageBox
+import Tkinter
 
 RACES_LIST = ['Large handicap','Small handicap','Toppers','Large and small handicap','Teras','Oppies']
 
@@ -37,6 +38,7 @@ class LightsController():
         self.raceManager.changed.connect("sequenceStartedWithWarning",self.handleSequenceStarted)
         self.raceManager.changed.connect("sequenceStartedWithoutWarning",self.handleSequenceStarted)
         self.raceManager.changed.connect("startSequenceAbandoned",self.handleStartSequenceAbandoned)
+        
         
         
     
@@ -124,6 +126,7 @@ class GunController():
         self.raceManager.changed.connect("sequenceStartedWithoutWarning",self.handleSequenceStartedWithoutWarning)
         self.raceManager.changed.connect("generalRecall",self.handleGeneralRecall)
         self.raceManager.changed.connect("startSequenceAbandoned",self.handleStartSequenceAbandoned)
+        self.raceManager.changed.connect("finishAdded", self.handleFinishAdded)
         
         
     def fireGun(self):
@@ -187,6 +190,8 @@ class GunController():
         
         self.scheduleGunsForFutureFleetStarts()
         
+    def handleFinishAdded(self,aFinish):
+        self.fireGun()
     
     def handleSequenceStartedWithoutWarning(self):
         # fire a gun straight away
@@ -230,6 +235,7 @@ class ScreenController():
         
         self.buildFleetManagerView()
         
+        
         self.wireController()
         self.disableButtons()
         
@@ -242,7 +248,9 @@ class ScreenController():
         self.raceManager.changed.connect("fleetAdded",self.handleFleetAdded)
         self.raceManager.changed.connect("fleetRemoved",self.handleFleetRemoved)
         self.raceManager.changed.connect("fleetChanged",self.handleFleetChanged)
+        self.raceManager.changed.connect("finishAdded",self.handleFinishAdded)
         self.easyDaqRelay.changed.connect("connectionStateChanged",self.handleConnectionStateChanged)
+        self.audioManager.changed.connect("playRequestQueueChanged",self.handleGunQueueChanged)
         self.startLineFrame.addFleetButton.config(command=self.addFleetClicked)
         self.startLineFrame.removeFleetButton.config(command=self.removeFleetClicked)
         self.startLineFrame.fleetsTreeView.bind("<<TreeviewSelect>>",self.fleetSelectionChanged)
@@ -250,7 +258,10 @@ class ScreenController():
         self.startLineFrame.startRaceSequenceWithoutWarningButton.config(command=self.startRaceSequenceWithoutWarningClicked)
         self.startLineFrame.generalRecallButton.config(command=self.generalRecallClicked)
         self.startLineFrame.gunButton.config(command=self.gunClicked)
+        self.startLineFrame.gunAndFinishButton.config(command=self.gunAndFinishClicked)
         self.startLineFrame.abandonStartRaceSequenceButton.config(command=self.abandonStartRaceSequenceClicked)
+        
+        
         
     def buildFleetManagerView(self):
         # we build our tree
@@ -331,6 +342,9 @@ class ScreenController():
         
         logging.debug("User has selected %s" % str(self.selectedFleet))
         self.updateButtonStates()
+        
+    def gunAndFinishClicked(self):
+        self.raceManager.createFinish()
     
     def handleFleetAdded(self,aFleet):
         self.appendFleetToTreeView(aFleet)
@@ -346,6 +360,58 @@ class ScreenController():
     def handleFleetChanged(self,aFleet):
         pass
     
+    def handleFinishAdded(self,aFinish):
+        self.appendFinishToFinishTreeView(aFinish)
+    
+    
+    def buildFinishView(self):
+        # we build our tree
+           
+        for finish in self.raceManager.finishes:
+            self.appendFinishToFinishTreeView(finish)
+    
+    #
+    
+    #
+    def appendFinishToFinishTreeView(self,aFinish):
+        finishItem = self.startLineFrame.finishTreeView.insert(
+             parent="",
+             index="end",
+             iid = aFinish.finishId,
+             text = self.renderFinishTime(aFinish),
+             values=(self.renderFinishFleet(aFinish),self.renderFinishElapsedTime(aFinish)))
+        logging.info("Asking finish treeView to see "+str(finishItem))
+        self.startLineFrame.finishTreeView.see(finishItem)
+        
+    #
+    # Render the fleet of a finish
+    #
+    def renderFinishFleet(self,aFinish):
+        # if our finish has a fleet, return the name of the fleet
+        if aFinish.fleet:
+            return aFinish.fleet.name
+        else:
+            return "-"
+        
+    #
+    # Render the finish time. This is the clock time of the finish
+    #
+    def renderFinishTime(self,finish):
+        return finish.finishTime.strftime("%H:%M:%S")
+    
+    def renderFinishElapsedTime(self,finish):
+        # if we have a fleet, calculate the delta from the finish time to the 
+        # start time of the fleet.
+        if finish.hasFleet():
+            return finish.elapsedFinishTime().strftime("%H:%M:%S")
+        #
+        # if we don't have a fleet, we can't calculate the elapsed time
+        #
+        else:
+        
+            return "-"
+        
+            
     #
     # event handler for the connection state of the easyDaqRelay changing
     #
@@ -446,6 +512,13 @@ class ScreenController():
     #
     def start(self):
         self.startLineFrame.after(500, self.refreshFleetsView)
+        
+    #
+    # The gun queue has changed. Update the UI to show the length of the gun queue
+    #
+    def handleGunQueueChanged(self,gunQueueCount):
+        self.startLineFrame.gunQueueCount.set("Gun Q: " + str(gunQueueCount))
+        
         
 logging.basicConfig(level=logging.INFO,
     format = "%(levelname)s:%(asctime)-15s %(message)s")
