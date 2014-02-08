@@ -165,7 +165,8 @@ class Finish:
     def __init__(self,finishTime=None,fleet=None):
         self.fleet = fleet
         self.finishTime = finishTime
-        self.finishId = Finish.nextFinishId
+        # we store the finishid as a string because this is the way Tk references it
+        self.finishId = str(Finish.nextFinishId)
         Finish.incrementNextFleetId()
         
         
@@ -174,9 +175,15 @@ class Finish:
             return True
         else:
             return False
-        
+    
     def elapsedFinishTime(self):
-        if self.hasFleet:
+        if self.hasFleet():
+            return self.fleet.startTime + self.elapsedFinishTimeDelta()
+        else:
+            raise  RaceException("Cannot calculate elapsed time if no fleet")
+    
+    def elapsedFinishTimeDelta(self):
+        if self.hasFleet():
             return self.finishTime - self.fleet.startTime
         else:
             raise RaceException("Cannot calculate elapsed time if no fleet")
@@ -199,6 +206,7 @@ class RaceManager:
         self.fleetsById = {}
         self.changed = Signal()
         self.finishes = []
+        self.finishesById = {}
         
 
     def adjustedSeconds(self,unadjustedSeconds):
@@ -383,6 +391,14 @@ class RaceManager:
     def addFinish(self,finish):
         # add it to our list of finish objects
         self.finishes.append(finish)
+        self.finishesById[finish.finishId] = finish
         # fire a change signal
         self.changed.fire("finishAdded",finish)
         
+    def updateFinish(self,finish):
+        self.changed.fire("finishChanged",finish)
+        
+    def finishWithId(self,finishId):
+        if finishId in self.finishesById:
+            return self.finishesById[finishId]
+    

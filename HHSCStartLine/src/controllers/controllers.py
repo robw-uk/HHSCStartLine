@@ -73,7 +73,7 @@ class LightsController():
                 lights = [LIGHT_ON, LIGHT_ON, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF]
             elif secondsToStart <= 60 and secondsToStart > 30: 
                 lights = [LIGHT_ON, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF]
-            elif secondsToStart <= 30 and (secondsToStart % 2 == 0):
+            elif secondsToStart <= 30 and (int(secondsToStart) % 2 == 0):
                 lights = [LIGHT_ON, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF]
             else:
                 lights = [LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF]
@@ -232,7 +232,8 @@ class ScreenController():
         self.audioManager = audioManager
         self.easyDaqRelay = easyDaqRelay
         self.selectedFleet = None    
-        
+        self.selectedFinish = None
+        self.fleetButtons=[]
         self.buildFleetManagerView()
         
         
@@ -249,6 +250,7 @@ class ScreenController():
         self.raceManager.changed.connect("fleetRemoved",self.handleFleetRemoved)
         self.raceManager.changed.connect("fleetChanged",self.handleFleetChanged)
         self.raceManager.changed.connect("finishAdded",self.handleFinishAdded)
+        self.raceManager.changed.connect("finishChanged",self.handleFinishChanged)
         self.raceManager.changed.connect("sequenceStartedWithWarning",self.handleSequenceStarted)
         self.raceManager.changed.connect("sequenceStartedWithoutWarning",self.handleSequenceStarted)
         self.easyDaqRelay.changed.connect("connectionStateChanged",self.handleConnectionStateChanged)
@@ -256,6 +258,7 @@ class ScreenController():
         self.startLineFrame.addFleetButton.config(command=self.addFleetClicked)
         self.startLineFrame.removeFleetButton.config(command=self.removeFleetClicked)
         self.startLineFrame.fleetsTreeView.bind("<<TreeviewSelect>>",self.fleetSelectionChanged)
+        self.startLineFrame.finishTreeView.bind("<<TreeviewSelect>>",self.finishSelectionChanged)
         self.startLineFrame.startRaceSequenceWithWarningButton.config(command=self.startRaceSequenceWithWarningClicked)
         self.startLineFrame.startRaceSequenceWithoutWarningButton.config(command=self.startRaceSequenceWithoutWarningClicked)
         self.startLineFrame.generalRecallButton.config(command=self.generalRecallClicked)
@@ -345,6 +348,11 @@ class ScreenController():
         logging.debug("User has selected %s" % str(self.selectedFleet))
         self.updateButtonStates()
         
+    def finishSelectionChanged(self,event):
+        item = self.startLineFrame.finishTreeView.selection()[0]
+        self.selectedFinish = self.raceManager.finishWithId(item)
+        self.updateButtonStates()
+        
     def gunAndFinishClicked(self):
         self.raceManager.createFinish()
     
@@ -364,7 +372,12 @@ class ScreenController():
     
     def handleFinishAdded(self,aFinish):
         self.appendFinishToFinishTreeView(aFinish)
+        
     
+    def handleFinishChanged(self,aFinish):
+        # update the GUI for a finish
+        self.startLineFrame.finishTreeView.item(aFinish.finishId,
+            values=(self.renderFinishFleet(aFinish),self.renderFinishElapsedTime(aFinish)))
     
     def buildFinishView(self):
         # we build our tree
@@ -376,10 +389,44 @@ class ScreenController():
     # When the sequence starts, we create our fleet buttons
     #
     def handleSequenceStarted(self):
+        self.createFleetButtons()
+        
+    def createFleetButtons(self):
         for i in range(len(self.raceManager.fleets)):
-            self.startLineFrame.createFleetButton(self.raceManager.fleets[i].name,i)
+            fleet = self.raceManager.fleets[i]
+            buttonText = fleet.name.replace(" ","\n")
+            fleetButton = self.startLineFrame.createFleetButton(buttonText,i)
+            
+            # we're creating multiple lambdas within the same namespace.
+            # This workaround comes from http://stackoverflow.com/questions/4236182/generate-tkinter-buttons-dynamically
+            
+            fleetButton.configure(command=lambda fleet=fleet: self.handleFleetButtonClickedForFleet(fleet=fleet))
+            self.fleetButtons.append(fleetButton)
+            
+            
+    def enableFleetButtons(self):
+        for button in self.fleetButtons:
+            button['state'] = Tkinter.NORMAL
+            
+    def disableFleetButtons(self):
+        for button in self.fleetButtons:
+            button['state'] = Tkinter.DISABLED
         
     
+    def handleFleetButtonClickedForFleet(self,fleet):
+        logging.info("Fleet button " + fleet.name + " clicked")
+        if self.selectedFinish:
+            self.selectedFinish.fleet = fleet
+            self.raceManager.updateFinish(self.selectedFinish)
+            self.selectFinishInTreeView(self.nextFinishWithoutFleetAfter(self.selectedFinish))
+    
+    def nextFinishWithoutFleetAfter(self,finish):
+        indexOfFinish = self.raceManager.finishes.index(finish)
+        for i in range(indexOfFinish+1,len(self.raceManager.finishes)):
+            if not self.raceManager.finishes[i].hasFleet():
+                return self.raceManager.finishes[i]
+            
+        return None
     #
     def appendFinishToFinishTreeView(self,aFinish):
         finishItem = self.startLineFrame.finishTreeView.insert(
@@ -395,6 +442,29 @@ class ScreenController():
         self.startLineFrame.update_idletasks()
         self.startLineFrame.finishTreeView.see(finishItem)
         
+        #
+        # if we don't already have a selected finish, select the fleet just added
+        #
+        if not self.selectedFinish:
+            self.selectFinishInTreeView(aFinish)
+    
+    
+    #
+    # This isn't quite right. 
+    #
+    
+    def selectFinishInTreeView(self,aFinish):
+        # if we do have a finish
+        if aFinish:
+            self.startLineFrame.finishTreeView.selection_set(aFinish.finishId)
+            self.selectedFinish = aFinish
+            self.enableFleetButtons()
+        else:
+        # if we don't have a finish
+            selectedItems = self.startLineFrame.finishTreeView.selection()
+            self.startLineFrame.finishTreeView.selection_set(selectedItems)
+        self.updateButtonStates()
+    
     #
     # Render the fleet of a finish
     #
@@ -415,7 +485,10 @@ class ScreenController():
         # if we have a fleet, calculate the delta from the finish time to the 
         # start time of the fleet.
         if finish.hasFleet():
-            return finish.elapsedFinishTime().strftime("%H:%M:%S")
+            
+            
+            
+            return str(int(finish.elapsedFinishTimeDelta().total_seconds()))
         #
         # if we don't have a fleet, we can't calculate the elapsed time
         #
@@ -518,6 +591,10 @@ class ScreenController():
                 self.startLineFrame.disableStartRaceSequenceWithWarningButton()
   
     
+        if self.selectedFinish:
+            self.enableFleetButtons()
+        else:
+            self.disableFleetButtons()
     #
     # start the controller. Every 500 milliseconds we refresh the start time and the status
     # of the race manager 

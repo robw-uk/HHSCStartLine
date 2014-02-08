@@ -15,8 +15,7 @@ You will need to download PyAudio, see http://people.csail.mit.edu/hubert/pyaudi
 '''
 import pyaudio
 import wave
-import time
-import sys
+
 from StringIO import StringIO
 from model.utils import Signal
 
