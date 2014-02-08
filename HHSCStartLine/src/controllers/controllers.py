@@ -249,6 +249,8 @@ class ScreenController():
         self.raceManager.changed.connect("fleetRemoved",self.handleFleetRemoved)
         self.raceManager.changed.connect("fleetChanged",self.handleFleetChanged)
         self.raceManager.changed.connect("finishAdded",self.handleFinishAdded)
+        self.raceManager.changed.connect("sequenceStartedWithWarning",self.handleSequenceStarted)
+        self.raceManager.changed.connect("sequenceStartedWithoutWarning",self.handleSequenceStarted)
         self.easyDaqRelay.changed.connect("connectionStateChanged",self.handleConnectionStateChanged)
         self.audioManager.changed.connect("playRequestQueueChanged",self.handleGunQueueChanged)
         self.startLineFrame.addFleetButton.config(command=self.addFleetClicked)
@@ -369,8 +371,14 @@ class ScreenController():
            
         for finish in self.raceManager.finishes:
             self.appendFinishToFinishTreeView(finish)
-    
+            
     #
+    # When the sequence starts, we create our fleet buttons
+    #
+    def handleSequenceStarted(self):
+        for i in range(len(self.raceManager.fleets)):
+            self.startLineFrame.createFleetButton(self.raceManager.fleets[i].name,i)
+        
     
     #
     def appendFinishToFinishTreeView(self,aFinish):
@@ -380,7 +388,11 @@ class ScreenController():
              iid = aFinish.finishId,
              text = self.renderFinishTime(aFinish),
              values=(self.renderFinishFleet(aFinish),self.renderFinishElapsedTime(aFinish)))
-        logging.info("Asking finish treeView to see "+str(finishItem))
+        
+        # the call up update_idletasks is needed to make sure that the
+        # treeview is fully populated. Without this line, on Active Python 2.7.2.5
+        # the scroll to the bottom only works every other item. 
+        self.startLineFrame.update_idletasks()
         self.startLineFrame.finishTreeView.see(finishItem)
         
     #

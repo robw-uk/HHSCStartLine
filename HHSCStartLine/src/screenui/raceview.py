@@ -37,6 +37,9 @@ class StartLineFrame(Frame):
         style.configure('.', font=('Helvetica',16))
         style.configure('Treeview',rowheight=30)
         
+        fleetFrameStyle = Style()
+        fleetFrameStyle.configure('Fleet.TFrame',background="blue")
+        
     
         
         self.fleetsTreeView = Treeview(self,
@@ -111,6 +114,15 @@ class StartLineFrame(Frame):
                                       #ipady=20
                                       )
         
+        #
+        # Fleet buttons. We create six fleet buttons. The buttons live in a panel
+        # that fills a whole column.
+        #
+        self.fleetButtonFrame = Frame(self,style="Fleet.TFrame")
+        self.fleetButtonFrame.configure(width=150)
+        self.fleetButtonFrame.grid(row=0,column=3,sticky=W+E+N+S,rowspan=6)
+        
+            
         
         #
         # Finish list (implemented using ttk Treeview
@@ -126,22 +138,22 @@ class StartLineFrame(Frame):
         self.finishTreeView.heading("#0",text='Finish time',anchor=W)
         self.finishTreeView.heading("fleet",text="Fleet", anchor=W)
         
-        self.finishTreeView.grid(row=0, column=3, rowspan=6,sticky=W+E+N+S)
-        ysb.grid(row=0,column=4,rowspan=6,stick=N+S)
-        xsb.grid(row=6,column=3,sticky=E+W)
+        self.finishTreeView.grid(row=0, column=4, rowspan=6,sticky=W+E+N+S)
+        ysb.grid(row=0,column=5,rowspan=6,stick=N+S)
+        xsb.grid(row=6,column=4,sticky=E+W)
         
         #
         # Gun and finish
         #
         self.gunAndFinishButton = Button(self, text="Gun and\nfinish")
-        self.gunAndFinishButton.grid(row=0,column=5,sticky=W+E+N+S)
+        self.gunAndFinishButton.grid(row=0,column=6,sticky=W+E+N+S)
         
         #
         # gun button
         #
         self.gunButton = Button(self,
                                     text="Gun")
-        self.gunButton.grid(row=1,column=5,sticky=W+E+N+S)
+        self.gunButton.grid(row=1,column=6,sticky=W+E+N+S)
         
         
         #
@@ -149,7 +161,7 @@ class StartLineFrame(Frame):
         #
         self.clockStringVar = StringVar(self,value="00:00:00")
         clockLabel = Label(self,textvariable=self.clockStringVar)
-        clockLabel.grid(row=7,column=3)
+        clockLabel.grid(row=7,column=4)
         
         #
         # EasyDaqRelay connection status label
@@ -163,7 +175,7 @@ class StartLineFrame(Frame):
         #
         self.gunQueueCount = StringVar(self,value="Gun Q: 0")
         gunQueueCountLabel = Label(self,textvariable=self.gunQueueCount)
-        gunQueueCountLabel.grid(row=7,column=5)
+        gunQueueCountLabel.grid(row=7,column=6)
         
         #
         # configure how the grid should resize. For now, we'll just configure the first
@@ -181,11 +193,21 @@ class StartLineFrame(Frame):
         # not column 2, this is a scroll bar
         Grid.columnconfigure(self,3,weight=1)
         # not column 4, this is a scroll bar
-        Grid.columnconfigure(self,5,weight=1)
+        Grid.columnconfigure(self,6,weight=1)
         
         # tell the frame to lay itself out
         
         self.grid()
+        
+    #
+    # dynamically create a fleet button and add to our fleet frame
+    #
+    def createFleetButton(self,fleetName,fleetIndex):
+        button = Button(self.fleetButtonFrame,text=fleetName,state=DISABLED)
+        button.grid(row=fleetIndex, column=0,sticky=W+E+N+S)
+        Grid.rowconfigure(self.fleetButtonFrame,fleetIndex,weight=1)
+         
+        
         
         
     def enableGeneralRecallButton(self):
