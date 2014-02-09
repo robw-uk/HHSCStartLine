@@ -443,9 +443,10 @@ class ScreenController():
         self.startLineFrame.finishTreeView.see(finishItem)
         
         #
-        # if we don't already have a selected finish, select the fleet just added
+        # if we don't already have a selected finish, 
+        # or select the fleet just added
         #
-        if not self.selectedFinish:
+        if not self.selectedFinish or self.selectedFinish.hasFleet():
             self.selectFinishInTreeView(aFinish)
     
     
