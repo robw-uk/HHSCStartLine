@@ -217,10 +217,9 @@ class EasyDaqUSBRelay:
     def connect(self):
         self.commandQueue.put(EasyDaqUSBConnect())
         
-    def disconnect(self):
-        self.commandQueue.put(EasyDaqUSBDisconnect())
+
     
-    def _disconnect(self):
+    def disconnect(self):
         self.enabled = False
         if self.isConnected:
             self.serialConnection.close()

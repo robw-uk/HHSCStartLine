@@ -93,56 +93,7 @@ class LightsController():
             
         return lights
     
-    def calculateMillisToNextUpdate(self):
-        # ask for the next fleet to start
-        nextFleetToStart = self.raceManager.nextFleetToStart()
-        
-        # if we have a fleet to start
-        if nextFleetToStart:
-            secondsToStart = -1 * nextFleetToStart.adjustedDeltaSecondsToStartTime()
-            
-            #
-            # calculate the time to the next update, using adjusted seconds to
-            # allow for speeded up clocks for testing and training 
-            # 
-            logging.debug("Adjusted seconds to start is %d" % secondsToStart)
-            
-            #
-            # Bug here that in speeded up mode, when we switch from one race to the next,
-            # our secondsToStart is 299 rather than 300.
-            #
-            # I'm thinking that this all becomes a lot simpler if we check for a light change
-            # every second whilst we have a next race to start.
-            #
-            
-            
-            if secondsToStart >= 300:
-                adjustedSecondsToNextUpdate = secondsToStart - 300
-            elif secondsToStart >= 240:
-                adjustedSecondsToNextUpdate = secondsToStart - 240
-            elif secondsToStart >= 180:
-                adjustedSecondsToNextUpdate = secondsToStart - 180
-            elif secondsToStart >= 120:
-                adjustedSecondsToNextUpdate = secondsToStart - 120
-            elif secondsToStart >= 60:
-                adjustedSecondsToNextUpdate = secondsToStart - 60
-            elif secondsToStart >= 30:
-                adjustedSecondsToNextUpdate = secondsToStart - 30
-            else:
-                adjustedSecondsToNextUpdate = 1 
-                
-            # now convert to actual seconds
-            unadjustedSecondsToNextUpdate = self.raceManager.unadjustedSecond(adjustedSecondsToNextUpdate)
-            
-            #
-            # and convert to millis. Must be an integer
-            #
-            return int(round(unadjustedSecondsToNextUpdate * 1000)) 
-            
-        else:
-            # we don't have a fleet to start. So return 0 to force an update now
-            return 0
-            
+    
                  
     
     def updateLights(self):
@@ -160,9 +111,9 @@ class LightsController():
             # make sure we update idle tasks so that the screen updates. This is particularly important in speedy mode
             self.tkRoot.update_idletasks()
             
-            self.updateTimer = self.tkRoot.after(self.calculateMillisToNextUpdate(), self.updateLights)
+            self.updateTimer = self.tkRoot.after(500, self.updateLights)
             
-        # if we don't have a race to start any more, set our lights to 0
+        # if we don't have a race to start any more, set our lights to 0 and don't update ourselves again
         else:
             self.easyDaqRelay.sendRelayCommand([LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF])
         
@@ -341,7 +292,7 @@ class ScreenController():
         self.startLineFrame.gunButton.config(command=self.gunClicked)
         self.startLineFrame.gunAndFinishButton.config(command=self.gunAndFinishClicked)
         self.startLineFrame.abandonStartRaceSequenceButton.config(command=self.abandonStartRaceSequenceClicked)
-        #self.startLineFrame.protocol("WM_DELETE_WINDOW",self.shutdown)
+        self.startLineFrame.master.protocol("WM_DELETE_WINDOW",self.shutdown)
         
         
         
@@ -692,7 +643,10 @@ class ScreenController():
 
     def shutdown(self):
         logging.info("Shutting down")
+        self.easyDaqRelay.sendRelayCommand([LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF])
         self.easyDaqRelay.stop()
+        # and then quit after a second
+        self.startLineFrame.after(1000,self.startLineFrame.master.quit)
         
 #
 # to manage our sub-process, we must ensure that our main is only invoked once, here. Otherewise
