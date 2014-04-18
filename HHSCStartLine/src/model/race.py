@@ -212,6 +212,9 @@ class RaceManager:
     def adjustedSeconds(self,unadjustedSeconds):
         return unadjustedSeconds * RaceManager.testSpeedRatio
     
+    def unadjustedSecond(self,adjustedSeconds):
+        return adjustedSeconds / RaceManager.testSpeedRatio
+    
     #
     # Create a fleet, add to our fleets and return the fleet. If the name is not specified,
     # we create a name as 'Fleet N' where N is the number of fleets.

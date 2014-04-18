@@ -4,8 +4,9 @@ Created on 26 Jan 2014
 @author: MBradley
 '''
 import logging
-
+import Queue
 import datetime
+import time
 
 import serial
 from model.utils import Signal
@@ -21,25 +22,25 @@ CONNECTED = 2
 
 
 '''
-EasyDayUSBRelay wraps an EasyDaq USB relay board. It currently uses the tkinter 
-event loop for managing events.
+EasyDayUSBRelay wraps an EasyDaq USB relay board. It has its own python thread for
+managing itself.
 
-If we experience issues with the stability of the tkinter user interface,
-we could wrap this object in a separate process and use python Queue objects
-to pass changes in the lights.
-  
+17/04/2014 - issue 2 - changed EasyDaqUSBRelay to run in its own thread to isolate the IO
+from the rest of the application. This means that the relay changes from an asynchronous model running on the Tk event loop to 
+a synchronous model. The performance overhead is not an issue for this application. The interface to the relay becomes
+a queue of command objects to change the state of the relay.  
 '''
 class EasyDaqUSBRelay:
 
-    def __init__(self, serialPortName,tkRoot):
+    def __init__(self, serialPortName):
         # capture the name of the serial port. On windows, this will be COM3, COM4 etc. The COM port is set
         # when the relay card is first plugged into the PC. You can change it subsequently through the control panel.
         self.serialPortName = serialPortName
         
         #
-        # We use the Tkinter event mechanism to schedule activity. You must therefore pass the root object of your Tkinter application
+        # we use a python queue as our command interface, both internally and externally
         #
-        self.tkRoot = tkRoot
+        self.commandQueue = Queue.Queue()
         
         #
         # we use a signal pattern to notify events
@@ -65,7 +66,7 @@ class EasyDaqUSBRelay:
         #
         self.isEnabled = False
         
-        
+                
         #
         # track the time of the last command. We default to now as the startup time
         #
@@ -121,31 +122,29 @@ class EasyDaqUSBRelay:
         self.lastCommandProcessedTime = datetime.datetime.now()
         
     def maintainSession(self):
-        # check the number of milliseconds since the last command.
-        # If it is more than 5000 milliseconds
+     
         if self.isConnected():
             logging.debug("Maintaining session")
             
-            if (self.timeSinceLastPacket() > 5000):
-                try:
-                    
-                    # create a relay packet that requests the EasyDaq to output its status
-                    self.currentRelayPacket = 'A' + chr(0)
-                    # and queue a request
-                    self.queuePacketToEasyDaq()
-                    # schedule a read for 500 milliseconds
-                    self.tkRoot.after(500,self.readSession)
-                    # and schedule to do this again in 5000 milli
-                    self.tkRoot.after(5000,self.maintainSession)
-                except (serial.SerialException):
-                    logging.exception("Exception writing read request to session")
-                    self.beNotConnected()
-                    self.reconnect()
-            # otherwise maintain session when 5000 millis has elapsed
-            else:
-                self.tkRoot.after(5000-self.timeSinceLastPacket(),self.maintainSession)
+            
+            try:
                 
+                # create a relay packet that requests the EasyDaq to output its status
+                self.currentRelayPacket = 'A' + chr(0)
+                # and queue a request
+                self.queuePacketToEasyDaq()
+                
+                # sleep for half a second
+                time.sleep(0.5)
+                # and read
+                self.readSession()
+                
+            except (serial.SerialException):
+                logging.exception("Exception writing read request to session")
+                self.beNotConnected()
+                self.reconnect()
         
+    
     def readSession(self):
         logging.debug("Reading from session")
         try:
@@ -179,9 +178,9 @@ class EasyDaqUSBRelay:
                 logging.info("Recovering ... sending previous relay command: %s" % self.printableCommand(self.previousRelayCommand))
                 self.currentRelayPacket = self.previousRelayCommand
                 self.queuePacketToEasyDaq()
-        self.tkRoot.after(5000,self.maintainSession)
+        
     
-    def connect(self):
+    def _connect(self):
         # we are sometimes trying to connect when we are already
         # connected
         if not self.isConnected():
@@ -195,7 +194,8 @@ class EasyDaqUSBRelay:
                     self.serialConnection.open()
                     logging.debug("Connected to serial port")
                 # wait for a second and establish the session
-                self.tkRoot.after(2000,self.establishSession)
+                time.sleep(2)
+                self.establishSession()
             
             except (serial.SerialException,ValueError) as e:           
                 logging.error("I/O error: {0}".format(e))
@@ -208,11 +208,19 @@ class EasyDaqUSBRelay:
     
     def reconnect(self):
         logging.info("Reconnecting to serial port")
-        self.tkRoot.after(5000,self.connect)
+        # sleep for 5 seconds
+        time.sleep(5)
+        # connect
+        self._connect()
         
         
-    
+    def connect(self):
+        self.commandQueue.put(EasyDaqUSBConnect())
+        
     def disconnect(self):
+        self.commandQueue.put(EasyDaqUSBDisconnect())
+    
+    def _disconnect(self):
         self.enabled = False
         if self.isConnected:
             self.serialConnection.close()
@@ -270,9 +278,30 @@ class EasyDaqUSBRelay:
         else:
             # and queue to be written in 100 milliseconds
             logging.debug("Queuing writing packet to easyDaq")
-            self.tkRoot.after(100-self.timeSinceLastPacket(), self.writePacketToEasyDaq)
+            time.sleep((100-self.timeSinceLastPacket())/1000)
+            self.writePacketToEasyDaq()
 
+
+    #
+    # This forms part of the external interface that will be invoked in a different thread.
+    # Encapsulate in an object and put on a queue for execution.
+    #
+    def sendRelayConfiguration(self,relayArray):
+        
+        
+        self.commandQueue.put(EasyDaqUSBSendRelayConfiguration(relayArray))
+     
+
+    #
+    # This forms part of the external interface that will be invoked in a different thread.
+    # Encapsulate in an object and put on a queue for execution.
+    #
     def sendRelayCommand(self,relayArray):
+     
+        
+        self.commandQueue.put(EasyDaqUSBSendRelayCommand(relayArray))
+    
+    def _sendRelayCommand(self,relayArray):
         # turn the values in the list into a byte where the bit in the byte reflects the position in the list.
         
         commandValue = 0
@@ -291,9 +320,8 @@ class EasyDaqUSBRelay:
         if self.isConnected():
             self.queuePacketToEasyDaq()
 
-
-        
-    def sendRelayConfiguration(self,relayArray):
+       
+    def _sendRelayConfiguration(self,relayArray):
         # turn the values in the list into a byte where the bit in the byte reflects the position in the list.
         
         commandValue = 0
@@ -306,3 +334,65 @@ class EasyDaqUSBRelay:
         self.currentRelayPacket = 'B' + chr(commandValue)
         
         self.queuePacketToEasyDaq()
+        
+    
+    #
+    # run is effectively the main method for the EasyDaqRelay
+    #
+    def run(self):
+        self.isRunning = True
+        self._connect()
+        while self.isRunning:
+            
+            # get the next command from the command queue. If we don't get a command after five seconds
+            # maintain our session
+            try:
+                logging.debug("Waiting for next command on command queue.")
+                nextCommand = self.commandQueue.get(timeout=5)
+                logging.debug("Return from command queue")
+                nextCommand.executeOn(self)
+            except Queue.Empty:
+                logging.debug("Timeout on command queue. Maintaining session.")
+                self.maintainSession()
+        self.disconnect()
+    
+    def stop(self):
+        self.commandQueue.put(EasyDaqUSBStop())
+     
+                
+#
+# We use the command pattern to provide the communication between external threads and the
+# thread that runs the EasyDaqRelay
+#            
+class EasyDaqUSBCommand:
+    
+    #
+    # command has one abstract method - execute method taking an
+    # EasyDaqUSBRelay as a parameter
+    #
+    def executeOn(self,aRelay):
+        pass
+    
+class EasyDaqUSBConnect(EasyDaqUSBCommand):
+    def executeOn(self,aRelay):
+        aRelay._connect()
+
+class EasyDaqUSBStop(EasyDaqUSBCommand):
+    def executeOn(self,aRelay):
+        aRelay.isRunning = False        
+
+class EasyDaqUSBSendRelayCommand(EasyDaqUSBCommand):
+    def __init__(self,relayArray):
+        self.relayArray = relayArray
+    
+    def executeOn(self,aRelay):
+        aRelay._sendRelayCommand(self.relayArray)
+        
+        
+class EasyDaqUSBSendRelayConfiguration(EasyDaqUSBCommand):
+    def __init__(self,relayArray):
+        self.relayArray = relayArray
+    
+    def executeOn(self,aRelay):
+        aRelay._sendRelayConfiguration(self.relayArray)
+                
