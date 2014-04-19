@@ -316,7 +316,7 @@ class EasyDaqUSBRelay:
                 bitValue = (relayArray[i] *  pow(2,i))
                 commandValue = commandValue + bitValue
         
-        logging.info("Sending C + %i" % commandValue)
+        logging.debug("Sending C + %i" % commandValue)
         relayCommand = 'C' + chr(commandValue)
         self.currentRelayCommand = relayCommand
         
@@ -336,7 +336,7 @@ class EasyDaqUSBRelay:
                 bitValue = (relayArray[i] *  pow(2,i))
                 commandValue = commandValue + bitValue
         
-        logging.info("Sending B + %i" % commandValue)        
+        logging.debug("Sending B + %i" % commandValue)        
         self.currentRelayPacket = 'B' + chr(commandValue)
         
         self.queuePacketToEasyDaq()

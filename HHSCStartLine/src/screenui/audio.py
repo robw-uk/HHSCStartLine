@@ -18,7 +18,7 @@ import logging
 
 from StringIO import StringIO
 
-
+CHUNK=1024
 
 class AudioManager:
     
@@ -52,38 +52,22 @@ class AudioManager:
         return duration
         
 
-    def callback(self, in_data, frame_count, time_info, status):
-        data = self.wav.readframes(frame_count)
-        
-        return (data, pyaudio.paContinue)
 
-    
-
-    def startStream(self):
-        self.stream = self.portAudio.open(format=self.portAudio.get_format_from_width(self.wav.getsampwidth()),
-                channels=self.wav.getnchannels(),
-                rate=self.wav.getframerate(),
-                output=True,
-                stream_callback=self.callback)
-
-        self.stream.start_stream()
-   
     def playWav(self):
         self.isPlaying = True
         logging.debug("Playing wav")
         self.openWav()
-        self.startStream()
-        time.sleep(self.wavDuration/1000.0) 
-        self.closeWav()
-    
-    #
-    # We scheduled this method to be queued the in the Tk event schedule
-    #
-    def closeWav(self):
-        self.stream.stop_stream()
-        self.stream.close()
-        self.isPlaying = False
-
+        stream = self.portAudio.open(format=self.portAudio.get_format_from_width(self.wav.getsampwidth()),
+                channels=self.wav.getnchannels(),
+                rate=self.wav.getframerate(),
+                output=True)
+        data = self.wav.readframes(CHUNK)
+        while data != '':
+            stream.write(data)
+            data = self.wav.readframes(CHUNK)
+        stream.stop_stream() 
+        stream.close()
+        
             
     #
     # The audio manager is designed to run synchronously in its own thread, using a Queue.Queue
@@ -100,6 +84,7 @@ class AudioManager:
                 # we do nothing if the queue is empty. This should never happen, because we are
                 # blocking for ever.
                 pass
+        self.portAudio.terminate()
             
     #
     # This method is called from within the Tkinter event thread.
