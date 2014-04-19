@@ -14,6 +14,7 @@ import getopt
 import datetime
 import tkMessageBox
 import Tkinter
+import Queue
 
 RACES_LIST = ['Large handicap','Small handicap','Toppers','Large and small handicap','Teras','Oppies']
 
@@ -279,9 +280,13 @@ class ScreenController():
         self.raceManager.changed.connect("finishChanged",self.handleFinishChanged)
         self.raceManager.changed.connect("sequenceStartedWithWarning",self.handleSequenceStarted)
         self.raceManager.changed.connect("sequenceStartedWithoutWarning",self.handleSequenceStarted)
+        
+        #
+        # Need to change this from event based to refreshing as part of the update loop
+        #
         if self.easyDaqRelay:
             self.easyDaqRelay.changed.connect("connectionStateChanged",self.handleConnectionStateChanged)
-        self.audioManager.changed.connect("playRequestQueueChanged",self.handleGunQueueChanged)
+        
         self.startLineFrame.addFleetButton.config(command=self.addFleetClicked)
         self.startLineFrame.removeFleetButton.config(command=self.removeFleetClicked)
         self.startLineFrame.fleetsTreeView.bind("<<TreeviewSelect>>",self.fleetSelectionChanged)
@@ -535,7 +540,14 @@ class ScreenController():
         self.startLineFrame.after(0, self.updateSessionStateDescription)
         
     def updateSessionStateDescription(self):
-        self.startLineFrame.connectionStatus.set(self.easyDaqRelay.sessionStateDescription())
+        while self.easyDaqRelay.sessionStateDescriptionQueue.qsize():
+            try:
+                message = self.easyDaqRelay.sessionStateDescriptionQueue.get_nowait()
+                self.startLineFrame.connectionStatus.set(message)
+            except Queue.Empty:
+                # this should never happen. 
+                message = "Lights: No message available"
+                
     
     
     def renderDeltaToStartTime(self, aFleet):
@@ -581,6 +593,16 @@ class ScreenController():
         # Update our clock
         #
         self.startLineFrame.clockStringVar.set(datetime.datetime.now().strftime("%H:%M:%S"))
+        
+        #
+        # Update the connection status
+        #
+        self.updateSessionStateDescription()
+        
+        #
+        # Update the wav file queue depth
+        #
+        self.updateGunQueueLength()
     
         #
         # Schedule to update this view again in 250 milliseonds
@@ -637,8 +659,9 @@ class ScreenController():
     #
     # The gun queue has changed. Update the UI to show the length of the gun queue
     #
-    def handleGunQueueChanged(self,gunQueueCount):
-        self.startLineFrame.gunQueueCount.set("Gun Q: " + str(gunQueueCount))
+    def updateGunQueueLength(self):
+        
+        self.startLineFrame.gunQueueCount.set("Gun Q : %d " % self.audioManager.queueLength())
 
 
     def shutdown(self):
@@ -689,17 +712,24 @@ if __name__ == '__main__':
         # run as a background thread. Allow application to end even if this thread is still running.
         relayThread.daemon = True
         
-        
-    audioManager = AudioManager(wavFileName,app)  
+    # the audio manager runs in its own thread    
+    audioManager = AudioManager(wavFileName)  
+    audioThread = threading.Thread(target = audioManager.run)
+    audioThread.daemon = True
+    
+    
+    
     screenController = ScreenController(app,raceManager,audioManager,easyDaqRelay)
     gunController = GunController(app, audioManager, raceManager)
     
     
     logging.info("Starting screen controller")             
     screenController.start()
+    
     if comPort:
         lightsController = LightsController(app, easyDaqRelay, raceManager)
         logging.info("Starting lights controller") 
         relayThread.start()
+    audioThread.start()
     app.master.title('Startline')    
     app.mainloop()  

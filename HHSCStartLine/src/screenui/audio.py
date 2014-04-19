@@ -1,11 +1,8 @@
 '''
 Created on 20 Jan 2014
 
-The audio manager plays a WAV file asynchronously. If you ask it to play the file
-whilst it is playing a file, it will queue the request and then immediately play
-the file again.
-
-It uses the tkRoot after timer to check for further queued request.
+The audio manager plays a WAV file asynchronously. As per http://joyrex.spc.uchicago.edu/bookshelves/python/cookbook/pythoncook-CHP-9-SECT-7.html
+Tk should be insulated from any external IO.
 
 See http://people.csail.mit.edu/hubert/pyaudio/ for details of PyAudio
 
@@ -15,23 +12,25 @@ You will need to download PyAudio, see http://people.csail.mit.edu/hubert/pyaudi
 '''
 import pyaudio
 import wave
+import Queue
+import time
+import logging
 
 from StringIO import StringIO
-from model.utils import Signal
+
 
 
 class AudioManager:
     
-    def __init__(self, wavFilename, tkRoot):
+    def __init__(self, wavFilename):
         
         self.portAudio = pyaudio.PyAudio()
-        self.tkRoot = tkRoot
         self.wavFilename = wavFilename
         self.readFileToMemory()
         self.wavDuration = self.calculateDuration()
-        self.playRequestQueue = 0
+        self.commandQueue = Queue.Queue()
         self.isPlaying = False
-        self.changed = Signal()
+        
         
     def readFileToMemory(self):
         # see http://stackoverflow.com/questions/8195544/how-to-play-wav-data-right-from-memory
@@ -71,9 +70,11 @@ class AudioManager:
    
     def playWav(self):
         self.isPlaying = True
+        logging.debug("Playing wav")
         self.openWav()
         self.startStream()
-        self.tkRoot.after(self.wavDuration, self.closeWav)
+        time.sleep(self.wavDuration/1000.0) 
+        self.closeWav()
     
     #
     # We scheduled this method to be queued the in the Tk event schedule
@@ -82,31 +83,52 @@ class AudioManager:
         self.stream.stop_stream()
         self.stream.close()
         self.isPlaying = False
-        
-        # this method is called in the tkRoot event thread, so we can safely check if we have any play requests
-        if self.playRequestQueue :
-            self.decrementPlayRequestQueue()
-            self.playWav()
-        
-        
+
+            
     #
-    #
-    #
-    def incrementPlayRequestQueue(self):
-        self.playRequestQueue = self.playRequestQueue + 1
-        self.changed.fire("playRequestQueueChanged",self.playRequestQueue)
-    
-    def decrementPlayRequestQueue(self):
-        self.playRequestQueue = self.playRequestQueue - 1
-        self.changed.fire("playRequestQueueChanged",self.playRequestQueue)
-    
+    # The audio manager is designed to run synchronously in its own thread, using a Queue.Queue
+    # to queue requests to play audio files using a command pattern.    #
+    def run(self):
+        self.isRunning = True
+        while self.isRunning:
+            try:
+                logging.debug("Waiting on audio manager command queue")
+                command = self.commandQueue.get(block=True)
+                command.executeOn(self)
+                
+            except Queue.Empty:
+                # we do nothing if the queue is empty. This should never happen, because we are
+                # blocking for ever.
+                pass
+            
     #
     # This method is called from within the Tkinter event thread.
     #
     def queueWav(self):
-        if not self.isPlaying:
-            self.playWav()
-        else:
-            self.incrementPlayRequestQueue()
+        self.commandQueue.put(AudioManagerPlayWav())
+        
+    
+    def stop(self):
+        self.commandQueue.put(AudioManagerStop())
+    
+    #
+    # if you want to know how many queued, check for the queue length
+    #
+    def queueLength(self):
+        return self.commandQueue.qsize()
+        
+
+class AudioManagerCommand:
+    def executeOn(self, anAudioManager):
+        pass
+    
+class AudioManagerPlayWav(AudioManagerCommand):
+    def executeOn(self, anAudioManager):
+        anAudioManager.playWav()
+        
+class AudioManagerStop(AudioManagerCommand):
+    def executeOn(self, anAudioManager):
+        anAudioManager.isRunning = False
+        
         
 

@@ -43,6 +43,12 @@ class EasyDaqUSBRelay:
         self.commandQueue = Queue.Queue()
         
         #
+        # we use a python queue as our session state description output mechanism. This insulates the GUI from the threading
+        # of the relay
+        #
+        self.sessionStateDescriptionQueue = Queue.Queue()
+        
+        #
         # we use a signal pattern to notify events
         #
         self.changed = Signal()
@@ -86,7 +92,8 @@ class EasyDaqUSBRelay:
     def setSessionState(self,state):
         self.sessionState = state
         logging.info("Session state is %s" % self.sessionStateDescription())
-        self.changed.fire("connectionStateChanged",state)
+        self.sessionStateDescriptionQueue.put(self.sessionStateDescription())
+        
         
     def beConnected(self):
         self.setSessionState(CONNECTED)
