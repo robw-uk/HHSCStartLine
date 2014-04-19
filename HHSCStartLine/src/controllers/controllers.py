@@ -297,7 +297,7 @@ class ScreenController():
         self.startLineFrame.gunButton.config(command=self.gunClicked)
         self.startLineFrame.gunAndFinishButton.config(command=self.gunAndFinishClicked)
         self.startLineFrame.abandonStartRaceSequenceButton.config(command=self.abandonStartRaceSequenceClicked)
-        self.startLineFrame.master.protocol("WM_DELETE_WINDOW",self.shutdown)
+        self.startLineFrame.master.protocol("WM_DELETE_WINDOW",self.exitClicked)
         
         
         
@@ -664,7 +664,13 @@ class ScreenController():
         self.startLineFrame.gunQueueCount.set("Gun Q : %d " % self.audioManager.queueLength())
 
 
+    def exitClicked(self):
+        result = tkMessageBox.askquestion("Exit","Are you sure?", icon="warning")
+        if result == 'yes':
+            self.shutdown()
+        
     def shutdown(self):
+        
         logging.info("Shutting down")
         self.easyDaqRelay.sendRelayCommand([LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF])
         self.easyDaqRelay.stop()
