@@ -578,6 +578,15 @@ class ScreenController():
         else:
             return "-"
         
+    def renderDeltaSecondsToStartTime(self, aFleet):
+        if aFleet.hasStartTime():
+            return int(aFleet.adjustedDeltaSecondsToStartTime())
+            
+            
+            
+        else:
+            return "-"
+        
     
     def refreshFleetsView(self):
         #
@@ -590,7 +599,7 @@ class ScreenController():
             self.startLineFrame.fleetsTreeView.item(
                         aFleet.fleetId,
                         
-                        values=[self.renderDeltaToStartTime(aFleet), aFleet.status()])
+                        values=[self.renderDeltaToStartTime(aFleet), self.renderDeltaSecondsToStartTime(aFleet),aFleet.status()])
         
        
         

@@ -43,7 +43,7 @@ class StartLineFrame(Frame):
     
         
         self.fleetsTreeView = Treeview(self,
-                                      columns=["startTime","status"],
+                                      columns=["startTime","startTimeSeconds","status"],
                                       style='Treeview',
                                       selectmode="browse",
                                       height=5)
@@ -53,6 +53,9 @@ class StartLineFrame(Frame):
         self.fleetsTreeView.heading("#0"  , text='Fleet', anchor=W)
         #self.fleetsTreeView.column("#0", width=350)
         self.fleetsTreeView.heading("startTime",text='Start time', anchor=W)
+        self.fleetsTreeView.column("startTime",width=125)
+        self.fleetsTreeView.heading("startTimeSeconds",text='Start time seconds',anchor=W)
+        self.fleetsTreeView.column("startTimeSeconds",width=125)
         self.fleetsTreeView.heading("status",text='Status', anchor=W)
         self.fleetsTreeView.configure(yscroll=ysb.set, xscroll=xsb.set)
         self.fleetsTreeView.grid(row=0,column=0,columnspan=2,rowspan=2,sticky=N+S+E+W)
