@@ -1,7 +1,7 @@
 '''
 Created on 20 Jan 2014
 
-The audio manager plays a WAV file asynchronously. As per http://joyrex.spc.uchicago.edu/bookshelves/python/cookbook/pythoncook-CHP-9-SECT-7.html
+The audio manager plays audio clips loaded from WAV files asynchronously. As per http://joyrex.spc.uchicago.edu/bookshelves/python/cookbook/pythoncook-CHP-9-SECT-7.html
 Tk should be insulated from any external IO.
 
 See http://people.csail.mit.edu/hubert/pyaudio/ for details of PyAudio
@@ -20,54 +20,83 @@ from StringIO import StringIO
 
 CHUNK=1024
 
-class AudioManager:
-    
+class AudioClip:
     def __init__(self, wavFilename):
-        
-        self.portAudio = pyaudio.PyAudio()
         self.wavFilename = wavFilename
         self.readFileToMemory()
         self.wavDuration = self.calculateDuration()
-        self.commandQueue = Queue.Queue()
-        self.isPlaying = False
-        
-        
+
     def readFileToMemory(self):
         # see http://stackoverflow.com/questions/8195544/how-to-play-wav-data-right-from-memory
         fileOnDisk = open(self.wavFilename,'rb')
         self.fileInMemory = StringIO(fileOnDisk.read())
         fileOnDisk.close()
-    
-    def openWav(self):
-        self.fileInMemory.seek(0)
-        self.wav = wave.open(self.fileInMemory)
-        pass
-        
-    
+
+
     def calculateDuration(self):
         self.openWav()
         numberFrames = self.wav.getnframes()
         rate = self.wav.getframerate()
         duration = int(1000 * (numberFrames / float(rate)))
         return duration
+
+    def openWav(self):
+        self.fileInMemory.seek(0)
+        self.wav = wave.open(self.fileInMemory)
+        pass
+                
+
+    
+    def playOn(self,audioManager):
+        self.openWav()
+        audioManager.playWav(self.wav)
+        
         
 
 
-    def playWav(self):
+
+class AudioManager:
+    
+    #
+    # Parameter is a list of tuples of symbolic name of wav and filename, e.g
+    # [('horn','c:\music\horn.wav),('beep','c:\music\beep.wav')]
+    #
+    def __init__(self, wavFiles):
+        # create our instance of PyAudio
+        self.portAudio = pyaudio.PyAudio()
+        # create a dictionary of audio clips           
+        self.audioClips = {}
+        
+        for (clipname,wavFilename) in wavFiles:
+            
+            self.audioClips[clipname] = AudioClip(wavFilename)
+            
+
+        self.commandQueue = Queue.Queue()
+        self.isPlaying = False
+        
+        
+    
+    
+
+
+    def playClip(self,clipName):
         self.isPlaying = True
         logging.debug("Playing wav")
-        self.openWav()
-        stream = self.portAudio.open(format=self.portAudio.get_format_from_width(self.wav.getsampwidth()),
-                channels=self.wav.getnchannels(),
-                rate=self.wav.getframerate(),
+        self.audioClips[clipName].playOn(self)
+
+        
+    def playWav(self,wav):
+        stream = self.portAudio.open(format=self.portAudio.get_format_from_width(wav.getsampwidth()),
+                channels=wav.getnchannels(),
+                rate=wav.getframerate(),
                 output=True)
-        data = self.wav.readframes(CHUNK)
+        data = wav.readframes(CHUNK)
         while data != '':
             stream.write(data)
-            data = self.wav.readframes(CHUNK)
+            data = wav.readframes(CHUNK)
         stream.stop_stream() 
         stream.close()
-        
             
     #
     # The audio manager is designed to run synchronously in its own thread, using a Queue.Queue
@@ -89,8 +118,8 @@ class AudioManager:
     #
     # This method is called from within the Tkinter event thread.
     #
-    def queueWav(self):
-        self.commandQueue.put(AudioManagerPlayWav())
+    def queueClip(self,clipName):
+        self.commandQueue.put(AudioManagerPlayClip(clipName))
         
     
     def stop(self):
@@ -107,9 +136,12 @@ class AudioManagerCommand:
     def executeOn(self, anAudioManager):
         pass
     
-class AudioManagerPlayWav(AudioManagerCommand):
+class AudioManagerPlayClip(AudioManagerCommand):
+    def __init__(self,clipName):
+        self.clipName = clipName
+        
     def executeOn(self, anAudioManager):
-        anAudioManager.playWav()
+        anAudioManager.playClip(self.clipName)
         
 class AudioManagerStop(AudioManagerCommand):
     def executeOn(self, anAudioManager):

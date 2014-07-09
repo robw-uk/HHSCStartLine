@@ -43,6 +43,18 @@ class RaceException(Exception):
         return repr(self.fleet)+ self.message
 
 
+
+class Boat:
+    
+    def __init__(self,sailNumber,boatClass,py=None):
+        self.sailNumber = sailNumber
+        self.boatClass = boatClass
+        self.py= py
+        self.finish = None
+        
+    def calculatePyAdjustedSeconds(self):
+        return self.finish.elapsedFinishTimeDelta().total_seconds() * 1000 / self.py
+
 #
 # A fleet represents a fleet of boats in a race. You should not change
 # the state of a race (its name or start time); do this through
@@ -64,6 +76,7 @@ class Fleet:
       
         self.name = name
         self.startTime = startTime
+        self.boats = []
         
         # we use a string for the fleetId as this is what tk likes to see :)
         

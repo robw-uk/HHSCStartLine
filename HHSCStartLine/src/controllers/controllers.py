@@ -15,6 +15,7 @@ import datetime
 import tkMessageBox
 import Tkinter
 import Queue
+import ConfigParser
 
 RACES_LIST = ['Large handicap','Small handicap','Toppers','Large and small handicap','Teras','Oppies']
 
@@ -157,9 +158,20 @@ class GunController():
         
         
     def fireGun(self):
-        self.audioManager.queueWav()
+        self.audioManager.queueClip("gun")
         
+ 
+    def soundWarning(self):
+        self.audioManager.queueClip("warning")
+    
+    #
+    # millis is the time of the gun. The warning beeps are for the ten secoonds prior to the gun
+    #
+    def scheduleWarningBeeps(self,gunMillis):
+        for warningMillis in range(gunMillis-10000, gunMillis, 1000):
+            self.addSchedule(self.tkRoot.after(warningMillis, self.soundWarning))
         
+    
     def scheduleGun(self,millis):
         logging.log(logging.DEBUG,"Scheduling gun for %d " % millis)
         scheduleId = self.tkRoot.after(millis, self.fireGun)
@@ -198,7 +210,9 @@ class GunController():
             #
             secondsToGun = secondsToStart - secondsBefore / RaceManager.testSpeedRatio
             logging.info("Seconds to start: %d, scheduling gun for %d seconds" % (secondsToStart,secondsToGun))
-            self.scheduleGun(int(1000*secondsToGun ))
+            gunMillis = int(1000*secondsToGun )
+            self.scheduleWarningBeeps(gunMillis)
+            self.scheduleGun(gunMillis)
             
          
         
@@ -363,7 +377,7 @@ class ScreenController():
         self.updateButtonStates()
         
     def gunClicked(self):
-        self.audioManager.queueWav()
+        self.audioManager.queueClip("gun")
 
 
     def abandonStartRaceSequenceClicked(self):
@@ -682,26 +696,49 @@ class ScreenController():
 # the subprocess will also invoke this code.
 #
 if __name__ == '__main__':
+    
+    
+    configFilename = sys.argv[1]   
+    sys.stderr.write("Reading config from %s" % configFilename)     
+    
+    
+    config = ConfigParser.ConfigParser()
+
+    config.read(configFilename)
+    
+    loglevel= config.get("Logging","level")
+    logfilename = config.get("Logging","filename")
         
-    logging.basicConfig(level=logging.DEBUG,
-        format = "%(levelname)s:%(asctime)-15s %(message)s")
+    logging.basicConfig(
+        level=getattr(logging, loglevel.upper()),
+        format = "%(levelname)s:%(asctime)-15s %(message)s",
+        filename = logfilename)
             
-    logging.debug(sys.argv)
-    myopts, args = getopt.getopt(sys.argv[1:],"p:t:w:",["port=","testSpeedRatio=","wavFile="])        
-    # default COM port is to not have one
-    comPort = None
-    # default test speed ratio is 1
-    testSpeedRatio = 1
-    for o, a in myopts:
-        logging.info("Option %s value %s" % (o,a))
-        if o in ('-p','--port'):
-            comPort=a
-        elif o in ('-t','--testSpeedRatio'):
-            testSpeedRatio=int(a)
-        elif o in ('-w','--wavFile'):
-            wavFileName=a
-        else:
-            print("Usage: %s -p [serial port to connect to] -w [wav file name for horn] -t [default 1, set to more than 1 to run faster]" % sys.argv[0])
+    
+    if config.get("Lights","enabled") == 'Y':
+        comPort = config.get("Lights","comPort")
+        logging.info("Lights enabled on COM port %s" % comPort)
+    else:
+        logging.info("Lights not enabled")
+        
+    
+    if config.get("Training","trainingMode") =='Y':
+        testSpeedRatio = config.getint("Training","trainingSpeed")
+        logging.info("Running in training mode at speed %i" % testSpeedRatio)
+    else:
+        testSpeedRatio = 1
+        logging.info("Running in race mode at standard speed")
+        
+    
+    #
+    # config.items returns a list of (name,value) pairs.
+    # In the Audio section, this is clipname,wavFilename
+    #
+    
+    audioClips = config.items("Audio")
+    
+    
+    
             
     app = StartLineFrame()  
     raceManager = RaceManager()
@@ -719,7 +756,7 @@ if __name__ == '__main__':
         relayThread.daemon = True
         
     # the audio manager runs in its own thread    
-    audioManager = AudioManager(wavFileName)  
+    audioManager = AudioManager(audioClips)  
     audioThread = threading.Thread(target = audioManager.run)
     audioThread.daemon = True
     
