@@ -28,6 +28,7 @@ from datetime import datetime,timedelta
 from utils import Signal
 import logging
 
+
 # As per ISAF rules, start minutes is 5
 # START_SECONDS = 300
 # WARNING_SECONDS=300
@@ -62,15 +63,10 @@ class Boat:
 #
 class Fleet:
     
-    nextFleetId = 1
     
-    @classmethod
-    def incrementNextFleetId(self):
-        Fleet.nextFleetId = Fleet.nextFleetId + 1
-    
-    def __init__(self, name=None, startTime=None):
-        self.changed = Signal()
-        self.fleetId = str(Fleet.nextFleetId)
+    def __init__(self, name=None, startTime=None,fleetId=None):
+        
+        self.fleetId = str(fleetId)
         if name is None:
             name = "Fleet " + str(self.fleetId)
       
@@ -78,9 +74,6 @@ class Fleet:
         self.startTime = startTime
         self.boats = []
         
-        # we use a string for the fleetId as this is what tk likes to see :)
-        
-        Fleet.incrementNextFleetId()
 
     #
     # Does this fleet have a start time?
@@ -168,19 +161,14 @@ class Fleet:
 #
 class Finish:
     
-    nextFinishId = 1
-    
-    @classmethod
-    def incrementNextFleetId(self):
-        Finish.nextFinishId = Finish.nextFinishId + 1
     
     
-    def __init__(self,finishTime=None,fleet=None):
+    def __init__(self,finishTime=None,fleet=None,finishId=None):
         self.fleet = fleet
         self.finishTime = finishTime
         # we store the finishid as a string because this is the way Tk references it
-        self.finishId = str(Finish.nextFinishId)
-        Finish.incrementNextFleetId()
+        self.finishId = str(finishId)
+        
         
         
     def hasFleet(self):
@@ -220,6 +208,36 @@ class RaceManager:
         self.changed = Signal()
         self.finishes = []
         self.finishesById = {}
+        # we store these on the race manager so that they get pickled
+        self.nextFleetId = 1
+        self.nextFinishId = 1
+        
+    #
+    # this method controls how the RaceManager is pickled. We want to avoid pickling the Signal object
+    # stored on the changed attribute
+    #
+    def __getstate__(self):
+        attributes = self.__dict__.copy()
+        del attributes["changed"]
+        
+        return attributes
+    
+    #
+    # this method controls how the RaceManager is unpickled. We need to set the changed attribute
+    # as it is not part of the pickle
+    #
+    def __setstate__(self,d):
+        self.__dict__ = d
+        self.changed = Signal()
+         
+
+    def incrementNextFleetId(self):
+        self.nextFleetId = self.nextFleetId + 1
+
+    def incrementNextFinishId(self):
+        self.nextFinishId = self.nextFinishId + 1
+
+
         
 
     def adjustedSeconds(self,unadjustedSeconds):
@@ -233,7 +251,8 @@ class RaceManager:
     # we create a name as 'Fleet N' where N is the number of fleets.
     #
     def createFleet(self, name=None):
-        aFleet = Fleet(name=name)
+        aFleet = Fleet(name=name,fleetId=self.nextFleetId)
+        self.incrementNextFleetId()
         self.addFleet(aFleet)
         return aFleet
     
@@ -397,7 +416,9 @@ class RaceManager:
         if not finishTime:
             finishTime = datetime.now()
         # create the finish object
-        aFinish = Finish(fleet=fleet,finishTime=finishTime)
+        
+        aFinish = Finish(fleet=fleet,finishTime=finishTime,finishId=self.nextFinishId)
+        self.incrementNextFinishId()
         
         self.addFinish(aFinish)
         
@@ -417,4 +438,5 @@ class RaceManager:
     def finishWithId(self,finishId):
         if finishId in self.finishesById:
             return self.finishesById[finishId]
+
     

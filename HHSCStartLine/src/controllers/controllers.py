@@ -6,6 +6,7 @@ Created on 23 Jan 2014
 from screenui.raceview import StartLineFrame,AddFleetDialog
 from model.race import RaceManager
 from screenui.audio import AudioManager
+from persistence.recovery import RaceRecoveryManager
 
 import threading 
 import logging
@@ -16,6 +17,8 @@ import tkMessageBox
 import Tkinter
 import Queue
 import ConfigParser
+import os
+import pickle
 
 RACES_LIST = ['Large handicap','Small handicap','Toppers','Large and small handicap','Teras','Oppies']
 
@@ -267,13 +270,16 @@ class GunController():
 class ScreenController():
     pass
 
-    def __init__(self,startLineFrame,raceManager,audioManager,easyDaqRelay):
+    def __init__(self,startLineFrame,raceManager,audioManager,easyDaqRelay,recoveryManager):
         self.startLineFrame = startLineFrame
         self.raceManager = raceManager
         self.audioManager = audioManager
         self.easyDaqRelay = easyDaqRelay
+        self.recoveryManager = recoveryManager
+        
         self.selectedFleet = None    
         self.selectedFinish = None
+        
         self.fleetButtons=[]
         self.buildFleetManagerView()
         
@@ -401,6 +407,7 @@ class ScreenController():
         self.updateButtonStates()
         
     def gunAndFinishClicked(self):
+        logging.debug("Gun and finish clicked")
         self.raceManager.createFinish()
     
     def handleFleetAdded(self,aFleet):
@@ -677,6 +684,10 @@ class ScreenController():
     # of the race manager 
     #
     def start(self):
+        # if we have recovered, we need to build our finish view and our fleet buttons
+        self.buildFinishView()
+        self.createFleetButtons()
+        
         self.startLineFrame.after(500, self.refreshFleetsView)
         
     #
@@ -697,9 +708,14 @@ class ScreenController():
         logging.info("Shutting down")
         self.easyDaqRelay.sendRelayCommand([LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF, LIGHT_OFF])
         self.easyDaqRelay.stop()
+        
+        # delete our recovery file if we have one
+        if self.recoveryManager:
+            self.recoveryManager.stop()
+        
         # and then quit after a second
         self.startLineFrame.after(1000,self.startLineFrame.master.quit)
-        
+
 #
 # to manage our sub-process, we must ensure that our main is only invoked once, here. Otherewise
 # the subprocess will also invoke this code.
@@ -750,7 +766,21 @@ if __name__ == '__main__':
     
             
     app = StartLineFrame()  
-    raceManager = RaceManager()
+    #
+    # Check for a recovery file. If we have one, ask if we want to recover our race manager
+    #
+    recoveryFilename = config.get("Persistence","recoveryFilename") 
+    if recoveryFilename:
+        if os.path.exists(config.get("Persistence","recoveryFilename")):
+            if tkMessageBox.askquestion("Crash detected","Do you want to recover?", icon="warning"):
+                raceManager = pickle.load(open(recoveryFilename))
+            else:
+                raceManager = RaceManager()
+        else:
+            raceManager = RaceManager()
+    else:
+        raceManager = RaceManager()
+    
     if testSpeedRatio:
         RaceManager.testSpeedRatio = testSpeedRatio
     logging.info("Setting test speed ratio to %d" % testSpeedRatio)
@@ -770,8 +800,14 @@ if __name__ == '__main__':
     audioThread.daemon = True
     
     
-    
-    screenController = ScreenController(app,raceManager,audioManager,easyDaqRelay)
+    recoveryManager = None
+    if config.get("Persistence","recoveryFilename"):
+        recoveryManager = RaceRecoveryManager(config.get("Persistence","recoveryFilename"),raceManager)
+        raceManager.changed.connect(None,recoveryManager.handleRaceManagerChanged)
+        recoveryThread = threading.Thread(target = recoveryManager.run)
+        recoveryThread.daemon = True
+        recoveryThread.start()
+    screenController = ScreenController(app,raceManager,audioManager,easyDaqRelay, recoveryManager)
     gunController = GunController(app, audioManager, raceManager)
     
     
