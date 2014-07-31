@@ -285,17 +285,19 @@ class RaceManager:
         return self.numberFleets() > 0
 
     #
-    # Start our race sequence with a five minute warning before the first
+    # Start our race sequence in ten seconds with a five minute warning before the first
     # fleet, i.e. 10 minutes to the first fleet start. This is F flag start
     #
     def startRaceSequenceWithWarning(self):
         logging.info("Start sequence with warning (F flag start)")
         fleetNumber = 0
+        
         now = datetime.now()
+        sequenceStart = now + timedelta(seconds=10)
         for fleet in self.fleets:
             fleetNumber = fleetNumber + 1
             
-            startTime = now + timedelta(
+            startTime = sequenceStart + timedelta(
                 seconds = (WARNING_SECONDS/RaceManager.testSpeedRatio + 
                         (START_SECONDS * fleetNumber)/RaceManager.testSpeedRatio))
 

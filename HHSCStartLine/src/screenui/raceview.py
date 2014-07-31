@@ -6,6 +6,7 @@ Add some notes here about the choice of UI architecture, in particular TreeView
 
 @author: MBradley
 '''
+
 from Tkinter import *
 from ttk import *
  
@@ -18,11 +19,12 @@ class StartLineFrame(Frame):
     '''
 
 
-    def __init__(self,master=None):
+    def __init__(self,master=None,backgroundColour=None):
         '''
         Constructor
         '''
         Frame.__init__(self, master)
+        self.backgroundColour=backgroundColour
         self.grid(sticky=N+S+E+W)
         self.createWidgets()
 
@@ -34,17 +36,17 @@ class StartLineFrame(Frame):
         top.columnconfigure(0, weight=1)
         
         style = Style()
+        #style.theme_use('winnative')
         style.configure('.', font=('Helvetica',16))
         style.configure('Treeview',rowheight=30)
+        style.configure('TButton')
         
-        fleetFrameStyle = Style()
-        fleetFrameStyle.configure('Fleet.TFrame')
         
     
         
         self.fleetsTreeView = Treeview(self,
                                       columns=["startTime","startTimeSeconds","status"],
-                                      style='Treeview',
+                                      
                                       selectmode="browse",
                                       height=5)
         
@@ -142,7 +144,7 @@ class StartLineFrame(Frame):
         # Fleet buttons. We create six fleet buttons. The buttons live in a panel
         # that fills a whole column.
         #
-        self.fleetButtonFrame = Frame(self,style="Fleet.TFrame")
+        self.fleetButtonFrame = Frame(self)
         self.fleetButtonFrame.configure(width=150)
         self.fleetButtonFrame.grid(row=0,column=5,sticky=W+E+N+S,rowspan=6)
         

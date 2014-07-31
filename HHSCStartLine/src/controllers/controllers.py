@@ -11,7 +11,7 @@ from persistence.recovery import RaceRecoveryManager
 import threading 
 import logging
 import sys
-import getopt
+
 import datetime
 import tkMessageBox
 import Tkinter
@@ -170,11 +170,14 @@ class GunController():
     #
     # millis is the time of the gun. The warning beeps are for the ten secoonds prior to the gun
     #
-    def scheduleWarningBeeps(self,gunMillis):
+    def scheduleWarningBeeps(self,gunMillis,finalWarning=False):
         for warningMillis in range(gunMillis-10000, gunMillis, 1000):
             self.addSchedule(self.tkRoot.after(warningMillis, self.soundWarning))
-        
+        # if we give a final warning instead of a gun, schedule this
+        if finalWarning:
+            self.addSchedule(self.tkRoot.after(gunMillis, self.soundWarning))
     
+ 
     def scheduleGun(self,millis):
         logging.log(logging.DEBUG,"Scheduling gun for %d " % millis)
         scheduleId = self.tkRoot.after(millis, self.fireGun)
@@ -188,6 +191,8 @@ class GunController():
         for aSchedule in self.scheduledGuns:
             self.tkRoot.after_cancel(aSchedule)
         self.scheduledGuns = []
+    
+    
         
     def scheduleGunForFleetStart(self,aFleet, secondsBefore):
         # calculate seconds to start of fleet
@@ -215,6 +220,7 @@ class GunController():
             logging.info("Seconds to start: %d, scheduling gun for %d seconds" % (secondsToStart,secondsToGun))
             gunMillis = int(1000*secondsToGun )
             self.scheduleWarningBeeps(gunMillis)
+            
             self.scheduleGun(gunMillis)
             
          
@@ -226,11 +232,23 @@ class GunController():
     # adjust our start seconds to reflect if we have speedup the start for testing purposes.
     #
     def handleSequenceStartedWithWarning(self):
-        # fire a gun straight away
-        self.fireGun()
+        # schedule ten second countdown
+        self.scheduleWarningBeeps(10000)
+        # schedule gun for ten seconds
+        self.scheduleGun(10000)
         
+        #
+        # schedule beeps for F flag down in 4 minutes time
+        #
+        fFlagDownMillis = 10000 + (4 * 60000) / RaceManager.testSpeedRatio
+        self.scheduleWarningBeeps(fFlagDownMillis, finalWarning=True)
+        
+        
+        # schedule guns for the first fleet
         
         self.scheduleGunForFleetStart(self.raceManager.fleets[0],300)
+        
+        # schedule guns for future fleets
         
         self.scheduleGunsForFutureFleetStarts()
         
@@ -570,10 +588,20 @@ class ScreenController():
                 message = "Lights: No message available"
                 
     
+    #
+    # Calculate the integer adjusted seconds to start time. This is counter-intuitive: the
+    # effect of the int function is to subtract 1 second almost all of the time. If the
+    # result is 1.99999 seconds, int will reduce to 1. So we add 1 second
+    # to the float value. This reflects the behaviour
+    # of a regular clock. On a countdown, we show the time as 2 seconds until it is
+    # exactly 1 second.
+    #
+    def integerAdjustedDeltaSecondsToFleetStartTime(self,aFleet):
+        return int(aFleet.adjustedDeltaSecondsToStartTime()-1)
     
     def renderDeltaToStartTime(self, aFleet):
         if aFleet.hasStartTime():
-            deltaToStartTimeSeconds = int(aFleet.adjustedDeltaSecondsToStartTime())
+            deltaToStartTimeSeconds = int(self.integerAdjustedDeltaSecondsToFleetStartTime(aFleet))
             
             hmsString = str(datetime.timedelta(seconds=(abs(deltaToStartTimeSeconds))))
             
@@ -585,9 +613,11 @@ class ScreenController():
         else:
             return "-"
         
+    
+    
     def renderDeltaSecondsToStartTime(self, aFleet):
         if aFleet.hasStartTime():
-            return int(aFleet.adjustedDeltaSecondsToStartTime())
+            return self.integerAdjustedDeltaSecondsToFleetStartTime(aFleet)
             
             
             
@@ -764,15 +794,15 @@ if __name__ == '__main__':
     
     
     
-            
-    app = StartLineFrame()  
+    backgroundColour = config.get("UserInterface","backgroundColour")        
+    app = StartLineFrame(backgroundColour=backgroundColour)  
     #
     # Check for a recovery file. If we have one, ask if we want to recover our race manager
     #
     recoveryFilename = config.get("Persistence","recoveryFilename") 
     if recoveryFilename:
         if os.path.exists(config.get("Persistence","recoveryFilename")):
-            if tkMessageBox.askquestion("Crash detected","Do you want to recover?", icon="warning"):
+            if tkMessageBox.askyesno("Crash detected","Do you want to recover?", icon="warning"):
                 raceManager = pickle.load(open(recoveryFilename))
             else:
                 raceManager = RaceManager()
@@ -809,6 +839,10 @@ if __name__ == '__main__':
         recoveryThread.start()
     screenController = ScreenController(app,raceManager,audioManager,easyDaqRelay, recoveryManager)
     gunController = GunController(app, audioManager, raceManager)
+    # check if a recovered raceManager has a started sequence. If so, schedule guns.
+    # note, this does not recover the F flag up beeps and gun nor F flag down beeps
+    if raceManager.hasSequenceStarted():
+        gunController.scheduleGunsForFutureFleetStarts()
     
     
     logging.info("Starting screen controller")             
