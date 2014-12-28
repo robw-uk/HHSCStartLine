@@ -5,6 +5,9 @@ Add some notes here about the choice of UI architecture, in particular TreeView
 
 
 @author: MBradley
+
+Updates
+28th Dec 2014 Rob West: Added Code to force the frame to initialise as the maximum size of the screen
 '''
 
 from Tkinter import *
@@ -31,7 +34,13 @@ class StartLineFrame(Frame):
         
     def createWidgets(self):
         
-        top=self.winfo_toplevel()                
+        top=self.winfo_toplevel()
+        # Read the screen width and height and force the frame to use these dimensions
+       
+        screenWidth=self.winfo_screenwidth()
+	       screenHeight=self.winfo_screenheight()
+	       geom_string = "%dx%d+0+0" % (screenWidth,screenHeight)
+	       top.wm_geometry(geom_string)  
         top.rowconfigure(0, weight=1)            
         top.columnconfigure(0, weight=1)
         
